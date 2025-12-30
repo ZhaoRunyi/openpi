@@ -20,6 +20,7 @@ import openpi.models.tokenizer as _tokenizer
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
+import openpi.policies.robocasa_policy as robocasa_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
@@ -221,6 +222,179 @@ class SimpleDataConfig(DataConfigFactory):
             self.create_base_config(assets_dirs, model_config),
             data_transforms=self.data_transforms(model_config),
             model_transforms=self.model_transforms(model_config),
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class LeRobotRobocasaDataConfig(DataConfigFactory):
+    """
+    This config is used to configure transforms that are applied at various parts of the data pipeline.
+    For your own dataset, you can copy this class and modify the transforms to match your dataset based on the
+    comments below.
+    """
+
+    extra_delta_transform: bool = False
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        # The repack transform is *only* applied to the data coming from the dataset,
+        # and *not* during inference. We can use it to make inputs from the dataset look
+        # as close as possible to those coming from the inference environment (e.g. match the keys).
+        # Below, we match the keys in the dataset (which we defined in the data conversion script) to
+        # the keys we use in our inference pipeline (defined in the inference script for libero).
+        # For your own dataset, first figure out what keys your environment passes to the policy server
+        # and then modify the mappings below so your dataset's keys get matched to those target keys.
+        # The repack transform simply remaps key names here.
+        
+        # NOTE: FOR ROBOCASA: TODO: repack transforms if we want a direct evaluation; image_left<->agent0_...., etc
+         
+        repack_transform = _transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "image_left": "image_left",
+                        "image_right": "image_right",
+                        "wrist_image": "wrist_image",
+                        "state": "state",
+                        "actions": "actions",
+                        "task_index": "task_index"
+                    }
+                )
+            ]
+        )
+
+        # The data transforms are applied to the data coming from the dataset *and* during inference.
+        # Below, we define the transforms for data going into the model (``inputs``) and the transforms
+        # for data coming out of the model (``outputs``) (the latter is only used during inference).
+        # We defined these transforms in `robocasa.py`. You can check the detailed comments there for
+        # how to modify the transforms to match your dataset. Once you created your own transforms, you can
+        # replace the transforms below with your own.
+
+        # TODO: Currently inputs all the states, (image_right->base, image_left->left_wrist, wrist_image->right_wrist)
+
+        data_transforms = _transforms.Group(
+            inputs=[robocasa_policy.RobocasaOpenRightDrawerRawInputs(tasks={0: "open the right drawer"}, model_type=model_config.model_type)],
+            outputs=[robocasa_policy.RobocasaRawOutputs()],
+        )
+
+        # One additional data transform: pi0 models are trained on delta actions (relative to the first
+        # state in each action chunk). IF your data has ``absolute`` actions (e.g. target joint angles)
+        # you can uncomment the following line to convert the actions to delta actions. The only exception
+        # is for the gripper actions which are always absolute.
+        # In the example below, we would apply the delta conversion to the first 6 actions (joints) and
+        # leave the 7th action (gripper) unchanged, i.e. absolute.
+        # In Libero, the raw actions in the dataset are already delta actions, so we *do not* need to
+        # apply a separate delta conversion (that's why it's commented out). Choose whether to apply this
+        # transform based on whether your dataset uses ``absolute`` or ``delta`` actions out of the box.
+
+        # LIBERO already represents actions as deltas, but we have some old Pi0 checkpoints that are trained with this
+        # extra delta transform.
+
+        # NOTE: here, 
+        # TODO: for robocasa, 6d pose is delta, gripper
+        # if self.extra_delta_transform:
+        #     delta_action_mask = _transforms.make_bool_mask(6, -1)
+        #     data_transforms = data_transforms.push(
+        #         inputs=[_transforms.DeltaActions(delta_action_mask)],
+        #         outputs=[_transforms.AbsoluteActions(delta_action_mask)],
+        #     )
+
+        # Model transforms include things like tokenizing the prompt and action targets
+        # You do not need to change anything here for your own dataset.
+        model_transforms = ModelTransformFactory()(model_config)
+
+        # We return all data transforms for training and inference. No need to change anything here.
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            repack_transforms=repack_transform,
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+        )
+
+@dataclasses.dataclass(frozen=True)
+class LeRobotRobocasaData2ViewsConfig(DataConfigFactory):
+    """
+    This config is used to configure transforms that are applied at various parts of the data pipeline.
+    For your own dataset, you can copy this class and modify the transforms to match your dataset based on the
+    comments below.
+    """
+
+    extra_delta_transform: bool = False
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        # The repack transform is *only* applied to the data coming from the dataset,
+        # and *not* during inference. We can use it to make inputs from the dataset look
+        # as close as possible to those coming from the inference environment (e.g. match the keys).
+        # Below, we match the keys in the dataset (which we defined in the data conversion script) to
+        # the keys we use in our inference pipeline (defined in the inference script for libero).
+        # For your own dataset, first figure out what keys your environment passes to the policy server
+        # and then modify the mappings below so your dataset's keys get matched to those target keys.
+        # The repack transform simply remaps key names here.
+        
+        # NOTE: FOR ROBOCASA: TODO: repack transforms if we want a direct evaluation; image_left<->agent0_...., etc
+         
+        repack_transform = _transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "image_left": "image_left",
+                        "image_right": "image_right",
+                        "wrist_image": "wrist_image",
+                        "state": "state",
+                        "actions": "actions",
+                        "task_index": "task_index"
+                    }
+                )
+            ]
+        )
+
+        # The data transforms are applied to the data coming from the dataset *and* during inference.
+        # Below, we define the transforms for data going into the model (``inputs``) and the transforms
+        # for data coming out of the model (``outputs``) (the latter is only used during inference).
+        # We defined these transforms in `robocasa.py`. You can check the detailed comments there for
+        # how to modify the transforms to match your dataset. Once you created your own transforms, you can
+        # replace the transforms below with your own.
+
+        # TODO: Currently inputs all the states, (image_right->base, image_left->left_wrist, wrist_image->right_wrist)
+
+        data_transforms = _transforms.Group(
+            inputs=[robocasa_policy.RobocasaOpenRightDrawer2ViewsInputs(tasks={0: "open the right drawer"}, model_type=model_config.model_type)],
+            outputs=[robocasa_policy.RobocasaRawOutputs()],
+        )
+
+        # One additional data transform: pi0 models are trained on delta actions (relative to the first
+        # state in each action chunk). IF your data has ``absolute`` actions (e.g. target joint angles)
+        # you can uncomment the following line to convert the actions to delta actions. The only exception
+        # is for the gripper actions which are always absolute.
+        # In the example below, we would apply the delta conversion to the first 6 actions (joints) and
+        # leave the 7th action (gripper) unchanged, i.e. absolute.
+        # In Libero, the raw actions in the dataset are already delta actions, so we *do not* need to
+        # apply a separate delta conversion (that's why it's commented out). Choose whether to apply this
+        # transform based on whether your dataset uses ``absolute`` or ``delta`` actions out of the box.
+
+        # LIBERO already represents actions as deltas, but we have some old Pi0 checkpoints that are trained with this
+        # extra delta transform.
+
+        # NOTE: here, 
+        # TODO: for robocasa, 6d pose is delta, gripper
+        # if self.extra_delta_transform:
+        #     delta_action_mask = _transforms.make_bool_mask(6, -1)
+        #     data_transforms = data_transforms.push(
+        #         inputs=[_transforms.DeltaActions(delta_action_mask)],
+        #         outputs=[_transforms.AbsoluteActions(delta_action_mask)],
+        #     )
+
+        # Model transforms include things like tokenizing the prompt and action targets
+        # You do not need to change anything here for your own dataset.
+        model_transforms = ModelTransformFactory()(model_config)
+
+        # We return all data transforms for training and inference. No need to change anything here.
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            repack_transforms=repack_transform,
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
         )
 
 
@@ -549,6 +723,67 @@ class TrainConfig:
 
 # Use `get_config` if you need to get a config by name in your code.
 _CONFIGS = [
+    #
+    # Robocasa configs
+    #
+    TrainConfig(
+        name="pi0_robocasa_openrightdrawer",
+        model=pi0_config.Pi0Config(action_horizon=5),
+        data=LeRobotRobocasaDataConfig(
+            repo_id="ZhaoRunyi/robocasa_openrightdrawer_human_lerobot",
+            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_robocasa_openrightdrawer/ZhaoRunyi/robocasa_openrightdrawer_human_lerobot"),
+        ),
+        # policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
+        weight_loader=weight_loaders.CheckpointWeightLoader("/workspace/ckpts/pi0_base/params"),
+        batch_size = 32
+    ),
+    TrainConfig(
+        name="pi0_robocasa_openrightdrawer_pytorch",
+        model=pi0_config.Pi0Config(action_horizon=5),
+        data=LeRobotRobocasaDataConfig(
+            repo_id="ZhaoRunyi/robocasa_openrightdrawer_human_lerobot",
+            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_robocasa_openrightdrawer/ZhaoRunyi/robocasa_openrightdrawer_human_lerobot"),
+        ),
+        # policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
+        pytorch_weight_path="/workspace/ckpts/pi0_base_pytorch",
+        batch_size = 32
+    ),
+    TrainConfig(
+        name="pi0_robocasa_openrightdrawer_pytorch_2views",
+        model=pi0_config.Pi0Config(action_horizon=5),
+        data=LeRobotRobocasaData2ViewsConfig(
+            repo_id="ZhaoRunyi/robocasa_openrightdrawer_human_lerobot",
+            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_robocasa_openrightdrawer/ZhaoRunyi/robocasa_openrightdrawer_human_lerobot"),
+        ),
+        # policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
+        pytorch_weight_path="/workspace/ckpts/pi0_base_pytorch",
+        batch_size = 32
+    ),
+    TrainConfig(
+        name="pi0_robocasa_opendrawer_pytorch_2views",
+        model=pi0_config.Pi0Config(action_horizon=5),
+        data=LeRobotRobocasaData2ViewsConfig(
+            repo_id="ZhaoRunyi/robocasa_opendrawer_human_lerobot",
+            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_robocasa_opendrawer_pytorch_2views/ZhaoRunyi/robocasa_opendrawer_human_lerobot"),
+        ),
+        # policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
+        pytorch_weight_path="/workspace/ckpts/pi0_base_pytorch",
+        batch_size = 32
+    ),
+    TrainConfig(
+        name="pi0_robocasa_opendrawer_pytorch_2views_1prompt",
+        model=pi0_config.Pi0Config(action_horizon=5),
+        data=LeRobotRobocasaData2ViewsConfig(
+            repo_id="ZhaoRunyi/robocasa_opendrawer_human_lerobot_1prompt",
+            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_robocasa_opendrawer_pytorch_2views_1prompt/ZhaoRunyi/robocasa_opendrawer_human_lerobot_1prompt"),
+        ),
+        # policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
+        pytorch_weight_path="/workspace/ckpts/pi0_base_pytorch",
+        batch_size = 32
+    ),
+
+
+
     #
     # Inference Aloha configs.
     #
