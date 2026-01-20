@@ -20,6 +20,7 @@ import openpi.models.tokenizer as _tokenizer
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
+import openpi.policies.slai_franka_policy as slai_franka_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
@@ -460,6 +461,100 @@ class LeRobotDROIDDataConfig(DataConfigFactory):
             data_transforms=data_transforms,
             model_transforms=model_transforms,
         )
+    
+########################## SLAI_FRANKA ##########################
+########################## SLAI_FRANKA ##########################
+########################## SLAI_FRANKA ##########################
+########################## SLAI_FRANKA ##########################
+########################## SLAI_FRANKA ##########################
+########################## SLAI_FRANKA ##########################
+########################## SLAI_FRANKA ##########################
+########################## SLAI_FRANKA ##########################
+########################## SLAI_FRANKA ##########################
+########################## SLAI_FRANKA ##########################
+########################## SLAI_FRANKA ##########################
+@dataclasses.dataclass(frozen=True)
+class LeRobotSLAIFrankaDataConfig(DataConfigFactory):
+    """
+    This config is used to configure transforms that are applied at various parts of the data pipeline.
+    For your own dataset, you can copy this class and modify the transforms to match your dataset based on the
+    comments below.
+    """
+
+    extra_delta_transform: bool = False
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        repack_transform = _transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "observation.state": "observation.state",
+                        "observation.images.eye_in_hand": "observation.images.eye_in_hand",
+                        "observation.images.agentview": "observation.images.agentview",
+                        "actions": "actions",
+                        "task_index": "task_index"
+                    }
+                )
+            ]
+        )
+
+        # The data transforms are applied to the data coming from the dataset *and* during inference.
+        # Below, we define the transforms for data going into the model (``inputs``) and the transforms
+        # for data coming out of the model (``outputs``) (the latter is only used during inference).
+        # We defined these transforms in `robocasa.py`. You can check the detailed comments there for
+        # how to modify the transforms to match your dataset. Once you created your own transforms, you can
+        # replace the transforms below with your own.
+
+        # TODO: Currently inputs all the states, (image_right->base, image_left->left_wrist, wrist_image->right_wrist)
+        from lerobot.common.constants import HF_LEROBOT_HOME
+        data_root =  pathlib.Path(HF_LEROBOT_HOME / self.repo_id)
+        tasks_path = data_root / "meta" / "tasks.jsonl"
+        tasks = {}
+        with open(tasks_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    entry = json.loads(line)
+                    tasks[entry['task_index']] = entry['task']
+
+        data_transforms = _transforms.Group(
+            inputs=[slai_franka_policy.SLAIFrankaInputs(tasks=tasks, model_type=model_config.model_type)],
+            outputs=[slai_franka_policy.SLAIFrankaOutputs()],
+        )
+
+        # One additional data transform: pi0 models are trained on delta actions (relative to the first
+        # state in each action chunk). IF your data has ``absolute`` actions (e.g. target joint angles)
+        # you can uncomment the following line to convert the actions to delta actions. The only exception
+        # is for the gripper actions which are always absolute.
+        # In the example below, we would apply the delta conversion to the first 6 actions (joints) and
+        # leave the 7th action (gripper) unchanged, i.e. absolute.
+        # In Libero, the raw actions in the dataset are already delta actions, so we *do not* need to
+        # apply a separate delta conversion (that's why it's commented out). Choose whether to apply this
+        # transform based on whether your dataset uses ``absolute`` or ``delta`` actions out of the box.
+
+        # Model transforms include things like tokenizing the prompt and action targets
+        # You do not need to change anything here for your own dataset.
+        model_transforms = ModelTransformFactory()(model_config)
+
+        # We return all data transforms for training and inference. No need to change anything here.
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            repack_transforms=repack_transform,
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+        )
+########################## SLAI_FRANKA ##########################
+########################## SLAI_FRANKA ##########################
+########################## SLAI_FRANKA ##########################
+########################## SLAI_FRANKA ##########################
+########################## SLAI_FRANKA ##########################
+########################## SLAI_FRANKA ##########################
+########################## SLAI_FRANKA ##########################
+########################## SLAI_FRANKA ##########################
+########################## SLAI_FRANKA ##########################
+########################## SLAI_FRANKA ##########################
+########################## SLAI_FRANKA ##########################
 
 
 @dataclasses.dataclass(frozen=True)
@@ -558,6 +653,43 @@ class TrainConfig:
 
 # Use `get_config` if you need to get a config by name in your code.
 _CONFIGS = [
+    ########################## SLAI_FRANKA ##########################
+    ########################## SLAI_FRANKA ##########################
+    ########################## SLAI_FRANKA ##########################
+    ########################## SLAI_FRANKA ##########################
+    ########################## SLAI_FRANKA ##########################
+    ########################## SLAI_FRANKA ##########################
+    ########################## SLAI_FRANKA ##########################
+    ########################## SLAI_FRANKA ##########################
+    ########################## SLAI_FRANKA ##########################
+    ########################## SLAI_FRANKA ##########################
+    ########################## SLAI_FRANKA ##########################
+    TrainConfig(
+        name="pi0_slaifranka_pnp",
+        model=pi0_config.Pi0Config(action_horizon=5),
+        data=LeRobotSLAIFrankaDataConfig(
+            # repo_id="ZhaoRunyi/Franka_Real_PnP_test",
+            repo_id="ZhaoRunyi/Franka_Real_PnP_new",
+            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_slaifranka_pnp/ZhaoRunyi/Franka_Real_PnP_new"),
+        ),
+        # policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
+        save_interval = 5000,
+        pytorch_weight_path="/workspace/ckpts/pi0_base_pytorch",
+        batch_size = 32
+    ),
+    ########################## SLAI_FRANKA ##########################
+    ########################## SLAI_FRANKA ##########################
+    ########################## SLAI_FRANKA ##########################
+    ########################## SLAI_FRANKA ##########################
+    ########################## SLAI_FRANKA ##########################
+    ########################## SLAI_FRANKA ##########################
+    ########################## SLAI_FRANKA ##########################
+    ########################## SLAI_FRANKA ##########################
+    ########################## SLAI_FRANKA ##########################
+    ########################## SLAI_FRANKA ##########################
+    ########################## SLAI_FRANKA ##########################
+
+
     #
     # Inference Aloha configs.
     #
