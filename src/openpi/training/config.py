@@ -1097,6 +1097,28 @@ _CONFIGS = [
         num_train_steps=100_000,
         # num_workers = 8
     ),
+    TrainConfig(
+        name="pi0_robocasa_mg20_pytorch_2views_pi05lrschedule_bs256",
+        model=pi0_config.Pi0Config(action_horizon=5),
+        data=LeRobotRobocasaData2ViewsConfig(
+            repo_id="ZhaoRunyi/robocasa_mg_lerobot_20",
+            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="physical-intelligence/robocasa_mg20_lerobot"),
+        ),
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=1_000,
+            peak_lr=5e-5,
+            decay_steps=1_000_000,
+            decay_lr=5e-5,
+        ),
+        # policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
+        pytorch_weight_path="/workspace/ckpts/pi0_base_pytorch",
+        batch_size = 256,
+        # fsdp_devices = __import__("jax").device_count(),
+        fsdp_devices = 8,
+        save_interval = 5000,
+        num_train_steps=100_000,
+        # num_workers = 8
+    ),
 
 
 
@@ -1118,13 +1140,14 @@ _CONFIGS = [
         model=pi0_config.Pi0Config(action_horizon=5),
         data=LeRobotSLAIFrankaDataConfig(
             # repo_id="ZhaoRunyi/Franka_Real_PnP_test",
-            repo_id="ZhaoRunyi/Franka_Real_PnP_new",
-            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_slaifranka_pnp/ZhaoRunyi/Franka_Real_PnP_new"),
+            repo_id="ZhaoRunyi/Franka_Real_PnP_0120",
+            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_slaifranka_pnp/ZhaoRunyi/Franka_Real_PnP_0120"),
         ),
         # policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
         save_interval = 5000,
         pytorch_weight_path="/workspace/ckpts/pi0_base_pytorch",
-        batch_size = 32
+        batch_size = 32,
+        fsdp_devices = 4
     ),
 
 
