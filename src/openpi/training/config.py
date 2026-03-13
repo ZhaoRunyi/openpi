@@ -480,8 +480,17 @@ class LeRobotSLAIFrankaDataConfig(DataConfigFactory):
     For your own dataset, you can copy this class and modify the transforms to match your dataset based on the
     comments below.
     """
-
-    extra_delta_transform: bool = False
+    
+    # State / action space configuration.
+    # 0~2: pos, 3~8: 6d_rot, 9: gripper.
+    state_space: tyro.conf.Suppress[str | list[str]] = "10d"
+    action_space: tyro.conf.Suppress[str | list[str]] = "10d"
+    # Gripper encoding for state: "width" passes through the raw width; "01" binarizes.
+    state_gripper_type: tyro.conf.Suppress[str] = "width"
+    state_gripper_threshold: tyro.conf.Suppress[float] = 0.01
+    # Gripper encoding for action: same options as state.
+    action_gripper_type: tyro.conf.Suppress[str] = "width"
+    action_gripper_threshold: tyro.conf.Suppress[float] = 0.01
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
@@ -519,8 +528,25 @@ class LeRobotSLAIFrankaDataConfig(DataConfigFactory):
                     tasks[entry['task_index']] = entry['task']
 
         data_transforms = _transforms.Group(
-            inputs=[slai_franka_policy.SLAIFrankaInputs(tasks=tasks, model_type=model_config.model_type)],
-            outputs=[slai_franka_policy.SLAIFrankaOutputs()],
+            inputs=[
+                slai_franka_policy.SLAIFrankaInputs(
+                    tasks=tasks,
+                    model_type=model_config.model_type,
+                    state_space=self.state_space,
+                    action_space=self.action_space,
+                    state_gripper_type=self.state_gripper_type,
+                    state_gripper_threshold=self.state_gripper_threshold,
+                    action_gripper_type=self.action_gripper_type,
+                    action_gripper_threshold=self.action_gripper_threshold,
+                )
+            ],
+            outputs=[
+                slai_franka_policy.SLAIFrankaOutputs(
+                    action_space=self.action_space,
+                    action_gripper_type=self.action_gripper_type,
+                    action_gripper_threshold=self.action_gripper_threshold,
+                )
+            ],
         )
 
         # One additional data transform: pi0 models are trained on delta actions (relative to the first
