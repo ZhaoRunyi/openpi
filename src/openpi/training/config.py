@@ -677,6 +677,126 @@ _CONFIGS = [
         pytorch_weight_path="/workspace/ckpts/pi0_base_pytorch",
         batch_size = 32
     ),
+    TrainConfig(
+        name="pi0_slaifranka_pnp_0122_horizon20",
+        model=pi0_config.Pi0Config(action_horizon=20),
+        data=LeRobotSLAIFrankaDataConfig(
+            # repo_id="ZhaoRunyi/Franka_Real_PnP_test",
+            repo_id="ZhaoRunyi/Franka_Real_PnP_0122",
+            # repo_id="ZhaoRunyi/test", # XXX XXX XXX
+            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_slaifranka_pnp_0122_horizon20/ZhaoRunyi/Franka_Real_PnP_0122"),
+            base_config=DataConfig(
+                prompt_from_task=True,
+            ),
+        ),
+        # policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
+        save_interval = 5000,
+        pytorch_weight_path="/workspace/ckpts/pi0_base_pytorch",
+        batch_size = 32,
+        fsdp_devices = 4
+    ),
+    TrainConfig(
+        name="pi0_slaifranka_pnp_0208_test",
+        model=pi0_config.Pi0Config(action_horizon=5),
+        data=LeRobotSLAIFrankaDataConfig(
+            # repo_id="ZhaoRunyi/Franka_Real_PnP_test",
+            repo_id="ZhaoRunyi/Franka_Real_Test_0208",
+            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_slaifranka_pnp_0208_test/ZhaoRunyi/Franka_Real_Test_0208"),
+            base_config=DataConfig(
+                prompt_from_task=True,
+            ),
+        ),
+        # policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
+        save_interval = 5000,
+        pytorch_weight_path="/workspace/ckpts/pi0_base_pytorch",
+        batch_size = 32,
+        fsdp_devices = 1
+    ),
+    TrainConfig(
+        name="pi0_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305",
+        model=pi0_config.Pi0Config(action_horizon=5),
+        data=LeRobotSLAIFrankaDataConfig(
+            # repo_id="ZhaoRunyi/Franka_Real_PnP_test",
+            repo_id="ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305",
+            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305"),
+            base_config=DataConfig(
+                prompt_from_task=True,
+            ),
+        ),
+        # policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
+        save_interval = 10000,
+        pytorch_weight_path="/workspace/ckpts/pi0_base_pytorch",
+        batch_size = 32,
+        fsdp_devices = 4
+    ),
+    TrainConfig(
+        name="pi0_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_horizon10_0305",
+        model=pi0_config.Pi0Config(action_horizon=10),
+        data=LeRobotSLAIFrankaDataConfig(
+            # repo_id="ZhaoRunyi/Franka_Real_PnP_test",
+            repo_id="ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305",
+            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305"),
+            base_config=DataConfig(
+                prompt_from_task=True,
+            ),
+        ),
+        # policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
+        save_interval = 10000,
+        pytorch_weight_path="/workspace/ckpts/pi0_base_pytorch",
+        batch_size = 32,
+        fsdp_devices = 4
+    ),
+    TrainConfig(
+        name="pi0_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_horizon30_0305",
+        model=pi0_config.Pi0Config(action_horizon=30),
+        data=LeRobotSLAIFrankaDataConfig(
+            # repo_id="ZhaoRunyi/Franka_Real_PnP_test",
+            repo_id="ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305",
+            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305"),
+            base_config=DataConfig(
+                prompt_from_task=True,
+            ),
+        ),
+        # policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
+        save_interval = 10000,
+        pytorch_weight_path="/workspace/ckpts/pi0_base_pytorch",
+        batch_size = 32,
+        fsdp_devices = 4
+    ),
+    TrainConfig(
+        name="pi05_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305",
+        model=pi0_config.Pi0Config(action_horizon=5, pi05=True, discrete_state_input=False),
+        data=LeRobotSLAIFrankaDataConfig(
+            # repo_id="ZhaoRunyi/Franka_Real_PnP_test",
+            repo_id="ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305",
+            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305"),
+            base_config=DataConfig(
+                prompt_from_task=True,
+            ),
+        ),
+        # policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
+        save_interval = 10000,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        batch_size = 32,
+        fsdp_devices = 4
+    ),
+    TrainConfig(
+        name="pi05_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_horizon30_0305",
+        model=pi0_config.Pi0Config(action_horizon=30, pi05=True, discrete_state_input=False),
+        data=LeRobotSLAIFrankaDataConfig(
+            # repo_id="ZhaoRunyi/Franka_Real_PnP_test",
+            repo_id="ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305",
+            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305"),
+            base_config=DataConfig(
+                prompt_from_task=True,
+            ),
+        ),
+        # policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
+        save_interval = 10000,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        batch_size = 32,
+        fsdp_devices = 4
+    ),
     ########################## SLAI_FRANKA ##########################
     ########################## SLAI_FRANKA ##########################
     ########################## SLAI_FRANKA ##########################
