@@ -473,6 +473,7 @@ class LeRobotDROIDDataConfig(DataConfigFactory):
 ########################## SLAI_FRANKA ##########################
 ########################## SLAI_FRANKA ##########################
 ########################## SLAI_FRANKA ##########################
+
 @dataclasses.dataclass(frozen=True)
 class LeRobotSLAIFrankaDataConfig(DataConfigFactory):
     """
@@ -481,16 +482,23 @@ class LeRobotSLAIFrankaDataConfig(DataConfigFactory):
     comments below.
     """
     
-    # State / action space configuration.
-    # 0~2: pos, 3~8: 6d_rot, 9: gripper.
-    state_space: tyro.conf.Suppress[str | list[str]] = "10d"
-    action_space: tyro.conf.Suppress[str | list[str]] = "10d"
-    # Gripper encoding for state: "width" passes through the raw width; "01" binarizes.
-    state_gripper_type: tyro.conf.Suppress[str] = "width"
-    state_gripper_threshold: tyro.conf.Suppress[float] = 0.01
-    # Gripper encoding for action: same options as state.
-    action_gripper_type: tyro.conf.Suppress[str] = "width"
-    action_gripper_threshold: tyro.conf.Suppress[float] = 0.01
+    state_space: slai_franka_policy.StateSpaceConfig = dataclasses.field(
+        default_factory=slai_franka_policy.StateSpaceConfig,
+    )
+    action_space: slai_franka_policy.ActionSpaceConfig = dataclasses.field(
+        default_factory=slai_franka_policy.ActionSpaceConfig,
+    )
+
+    def create_base_config(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        repo_id = self.repo_id if self.repo_id is not tyro.MISSING else None
+        asset_id = self.assets.asset_id or repo_id
+        return dataclasses.replace(
+            self.base_config or DataConfig(),
+            repo_id=repo_id,
+            asset_id=asset_id,
+            norm_stats=self._load_norm_stats(epath.Path(self.assets.assets_dir or assets_dirs), asset_id),
+            use_quantile_norm=model_config.model_type != ModelType.PI0,
+        )
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
@@ -502,7 +510,8 @@ class LeRobotSLAIFrankaDataConfig(DataConfigFactory):
                         "observation.images.eye_in_hand": "observation.images.eye_in_hand",
                         "observation.images.agentview": "observation.images.agentview",
                         "actions": "actions",
-                        "task_index": "task_index"
+                        "task_index": "task_index",
+                        "prompt": "prompt"
                     }
                 )
             ]
@@ -515,37 +524,16 @@ class LeRobotSLAIFrankaDataConfig(DataConfigFactory):
         # how to modify the transforms to match your dataset. Once you created your own transforms, you can
         # replace the transforms below with your own.
 
-        # TODO: Currently inputs all the states, (image_right->base, image_left->left_wrist, wrist_image->right_wrist)
-        from lerobot.common.constants import HF_LEROBOT_HOME
-        data_root =  pathlib.Path(HF_LEROBOT_HOME / self.repo_id)
-        tasks_path = data_root / "meta" / "tasks.jsonl"
-        tasks = {}
-        with open(tasks_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    entry = json.loads(line)
-                    tasks[entry['task_index']] = entry['task']
-
         data_transforms = _transforms.Group(
             inputs=[
                 slai_franka_policy.SLAIFrankaInputs(
-                    tasks=tasks,
                     model_type=model_config.model_type,
                     state_space=self.state_space,
                     action_space=self.action_space,
-                    state_gripper_type=self.state_gripper_type,
-                    state_gripper_threshold=self.state_gripper_threshold,
-                    action_gripper_type=self.action_gripper_type,
-                    action_gripper_threshold=self.action_gripper_threshold,
                 )
             ],
             outputs=[
-                slai_franka_policy.SLAIFrankaOutputs(
-                    action_space=self.action_space,
-                    action_gripper_type=self.action_gripper_type,
-                    action_gripper_threshold=self.action_gripper_threshold,
-                )
+                slai_franka_policy.SLAIFrankaOutputs(action_space=self.action_space)
             ],
         )
 
@@ -822,6 +810,41 @@ _CONFIGS = [
         pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
         batch_size = 32,
         fsdp_devices = 4
+    ),
+    TrainConfig(
+        name="pi05_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_horizon30_state9d_0305",
+        model=pi0_config.Pi0Config(action_horizon=30, pi05=True, discrete_state_input=False),
+        data=LeRobotSLAIFrankaDataConfig(
+            repo_id="ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305",
+            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305"),
+            base_config=DataConfig(prompt_from_task=True),
+            state_space=slai_franka_policy.StateSpaceConfig(ids="9d")
+        ),
+        save_interval=10000,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        batch_size=32,
+        fsdp_devices=4
+    ),
+    TrainConfig(
+        name="pi05_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_horizon30_stateaction01_0305",
+        model=pi0_config.Pi0Config(action_horizon=30, pi05=True, discrete_state_input=False),
+        data=LeRobotSLAIFrankaDataConfig(
+            repo_id="ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305",
+            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305"),
+            base_config=DataConfig(prompt_from_task=True),
+            state_space=slai_franka_policy.StateSpaceConfig(
+                ids="10d",
+                gripper=slai_franka_policy.GripperConfig(type="01"),
+            ),
+            action_space=slai_franka_policy.ActionSpaceConfig(
+                ids="10d",
+                gripper=slai_franka_policy.GripperConfig(type="01"),
+            ),
+        ),
+        save_interval=10000,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        batch_size=32,
+        fsdp_devices=4
     ),
     ########################## SLAI_FRANKA ##########################
     ########################## SLAI_FRANKA ##########################
