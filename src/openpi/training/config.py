@@ -846,6 +846,48 @@ _CONFIGS = [
         batch_size=32,
         fsdp_devices=4
     ),
+    TrainConfig(
+        name="pi05_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_horizon30_state9d_0316",
+        model=pi0_config.Pi0Config(action_horizon=30, pi05=True, discrete_state_input=False),
+        data=LeRobotSLAIFrankaDataConfig(
+            repo_id="ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0316",
+            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi05_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_horizon30_state9d_0316/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0316"),
+            base_config=DataConfig(prompt_from_task=True),
+            state_space=slai_franka_policy.StateSpaceConfig(ids="9d")
+        ),
+        save_interval=10000,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        batch_size=32,
+        fsdp_devices=4
+    ),
+    TrainConfig(
+        name="pi05_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_horizon30_state9d_0317",
+        model=pi0_config.Pi0Config(action_horizon=30, pi05=True, discrete_state_input=False),
+        data=LeRobotSLAIFrankaDataConfig(
+            repo_id="ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0317",
+            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi05_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_horizon30_state9d_0317/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0317"),
+            base_config=DataConfig(prompt_from_task=True),
+            state_space=slai_franka_policy.StateSpaceConfig(ids="9d")
+        ),
+        save_interval=10000,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        batch_size=32,
+        fsdp_devices=4
+    ),
+    TrainConfig(
+        name="pi05_slaifranka_pick_up_the_test_tube_with_a_clamp_and_hold_it_over_the_alcohol_lamp_to_heat_it_horizon30_state9d_0318",
+        model=pi0_config.Pi0Config(action_horizon=30, pi05=True, discrete_state_input=False),
+        data=LeRobotSLAIFrankaDataConfig(
+            repo_id="ZhaoRunyi/Franka_pick_up_the_test_tube_with_a_clamp_and_hold_it_over_the_alcohol_lamp_to_heat_it_0318",
+            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi05_slaifranka_pick_up_the_test_tube_with_a_clamp_and_hold_it_over_the_alcohol_lamp_to_heat_it_horizon30_state9d_0318/ZhaoRunyi/Franka_pick_up_the_test_tube_with_a_clamp_and_hold_it_over_the_alcohol_lamp_to_heat_it_0318"),
+            base_config=DataConfig(prompt_from_task=True),
+            state_space=slai_franka_policy.StateSpaceConfig(ids="9d")
+        ),
+        save_interval=10000,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        batch_size=32,
+        fsdp_devices=4
+    ),
     ########################## SLAI_FRANKA ##########################
     ########################## SLAI_FRANKA ##########################
     ########################## SLAI_FRANKA ##########################
