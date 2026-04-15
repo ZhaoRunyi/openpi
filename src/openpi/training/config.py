@@ -20,6 +20,7 @@ import openpi.models.tokenizer as _tokenizer
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
+import openpi.policies.slai_piper_policy as slai_piper_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
@@ -459,6 +460,68 @@ class LeRobotDROIDDataConfig(DataConfigFactory):
             repack_transforms=repack_transform,
             data_transforms=data_transforms,
             model_transforms=model_transforms,
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class LeRobotSLAIPiperDataConfig(DataConfigFactory):
+    """
+    Config for Piper-style LeRobot datasets whose observation/action vectors are built from
+    configurable joint / gripper / ee-pose blocks and optional image subsets.
+    """
+
+    default_prompt: str | None = None
+    state_space: slai_piper_policy.StateSpaceConfig = dataclasses.field(
+        default_factory=slai_piper_policy.StateSpaceConfig,
+    )
+    action_space: slai_piper_policy.ActionSpaceConfig = dataclasses.field(
+        default_factory=slai_piper_policy.ActionSpaceConfig,
+    )
+    image_space: slai_piper_policy.ImageSpaceConfig = dataclasses.field(
+        default_factory=slai_piper_policy.ImageSpaceConfig,
+    )
+    action_sequence_keys: Sequence[str] = ("action",)
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        repack_transform = _transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "observation.state": "observation.state",
+                        "observation.images.cam_high": "observation.images.cam_high",
+                        "observation.images.cam_left_wrist": "observation.images.cam_left_wrist",
+                        "observation.images.cam_right_wrist": "observation.images.cam_right_wrist",
+                        "actions": "action",
+                        "task_index": "task_index",
+                        "prompt": "prompt",
+                    }
+                )
+            ]
+        )
+        data_transforms = _transforms.Group(
+            inputs=[
+                slai_piper_policy.SLAIPiperInputs(
+                    model_type=model_config.model_type,
+                    state_space=self.state_space,
+                    action_space=self.action_space,
+                    image_space=self.image_space,
+                )
+            ],
+            outputs=[
+                slai_piper_policy.SLAIPiperOutputs(
+                    action_space=self.action_space,
+                )
+            ],
+        )
+        model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
+
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            repack_transforms=repack_transform,
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+            action_sequence_keys=self.action_sequence_keys,
         )
 
 
@@ -915,6 +978,92 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_droid/params"),
         num_train_steps=20_000,
         batch_size=32,
+    ),
+    #
+    # Piper / SLAI configs.
+    #
+    TrainConfig(
+        name="pi0_slai_piper_template",
+        model=pi0_config.Pi0Config(
+            action_dim=slai_piper_policy.get_space_dim(slai_piper_policy.ActionSpaceConfig()),
+        ),
+        data=LeRobotSLAIPiperDataConfig(
+            repo_id="your_hf_username/my_piper_dataset",
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+    ),
+    TrainConfig(
+        name="pi05_slai_piper_click_bell_H10_0403",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=slai_piper_policy.get_space_dim(slai_piper_policy.ActionSpaceConfig()),
+            action_horizon=10,
+        ),
+        data=LeRobotSLAIPiperDataConfig(
+            repo_id="ZhaoRunyi/Piper_click_bell_0403",
+            assets=AssetsConfig(assets_dir="/workspace/openpi_piper/assets", asset_id="pi05_slai_piper_click_bell_H10_0403/ZhaoRunyi/Piper_click_bell_0403"),
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        save_interval=10000,
+        batch_size=32,
+        fsdp_devices=4,
+    ),
+    TrainConfig(
+        name="pi05_slai_piper_click_bell_H10_Aeegripper_Seeonly_0403",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=slai_piper_policy.get_space_dim(slai_piper_policy.ActionSpaceConfig()),
+            action_horizon=10,
+        ),
+        data=LeRobotSLAIPiperDataConfig(
+            action_space=slai_piper_policy.ActionSpaceConfig(ids="ee_gripper"),
+            state_space=slai_piper_policy.StateSpaceConfig(ids="ee_only"),
+            repo_id="ZhaoRunyi/Piper_click_bell_0403",
+            assets=AssetsConfig(assets_dir="/workspace/openpi_piper/assets", asset_id="pi05_slai_piper_click_bell_H10_Aeegripper_Seeonly_0403/ZhaoRunyi/Piper_click_bell_0403"),
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        save_interval=10000,
+        batch_size=32,
+        fsdp_devices=4,
+    ),
+    TrainConfig(
+        name="pi05_slai_piper_items_hand_over_place_H10_0403",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=slai_piper_policy.get_space_dim(slai_piper_policy.ActionSpaceConfig()),
+            action_horizon=10,
+        ),
+        data=LeRobotSLAIPiperDataConfig(
+            repo_id="ZhaoRunyi/Piper_items_hand_over_place_0403",
+            assets=AssetsConfig(assets_dir="/workspace/openpi_piper/assets", asset_id="pi05_slai_piper_items_hand_over_place_H10_0403/ZhaoRunyi/Piper_items_hand_over_place_0403"),
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        save_interval=10000,
+        batch_size=32,
+        fsdp_devices=4,
+    ),
+    TrainConfig(
+        name="pi05_slai_piper_items_hand_over_place_H10_Aeegripper_Seeonly_0403",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=slai_piper_policy.get_space_dim(slai_piper_policy.ActionSpaceConfig()),
+            action_horizon=10,
+        ),
+        data=LeRobotSLAIPiperDataConfig(
+            action_space=slai_piper_policy.ActionSpaceConfig(ids="ee_gripper"),
+            state_space=slai_piper_policy.StateSpaceConfig(ids="ee_only"),
+            repo_id="ZhaoRunyi/Piper_items_hand_over_place_0403",
+            assets=AssetsConfig(assets_dir="/workspace/openpi_piper/assets", asset_id="pi05_slai_piper_items_hand_over_place_H10_Aeegripper_Seeonly_0403/ZhaoRunyi/Piper_items_hand_over_place_0403"),
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        save_interval=10000,
+        batch_size=32,
+        fsdp_devices=4,
     ),
     #
     # ALOHA Sim configs. This config is used to demonstrate how to train on a simple simulated environment.
