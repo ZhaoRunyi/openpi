@@ -20,7 +20,7 @@ def make_piper_example(
     image_space = image_space or ImageSpaceConfig()
 
     example = {
-        "observation.state": np.random.rand(get_space_dim(state_space)),
+        "observation.state": np.random.rand(get_space_dim(StateSpaceConfig(ee_rotation=state_space.ee_rotation))),
         "prompt": "do something",
     }
     for image_id in _image_ids_from_config(image_space):
@@ -45,7 +45,7 @@ IDS_MAP = {
     "all": ["joint", "gripper", "ee_pos", "ee_rot"],
     "joint_gripper": ["joint", "gripper"],
     "joint_only": ["joint"],
-    "ee_gripper": ["ee_pos", "ee_rot", "gripper"],
+    "ee_gripper": ["gripper", "ee_pos", "ee_rot"],
     "ee_only": ["ee_pos", "ee_rot"],
 }
 
@@ -311,6 +311,8 @@ def _extract_vec(
 ) -> np.ndarray:
     """Extract configured dims from the full Piper training vector."""
     full = np.asarray(full)
+    if full.shape[-1] != (expected_dim := len(_indices_from_space(_full_data_space(space["ee_rotation"])))):
+        raise ValueError(f"Expected full Piper vector dim {expected_dim}, got {full.shape[-1]}.")
     indices = _indices_from_space(space)
     vec = full[..., indices]
     if "gripper" in space["ids"] and gripper_cfg is not None and gripper_cfg.type == "01":
@@ -383,6 +385,8 @@ class SLAIPiperInputs(transforms.DataTransformFn):
             else:
                 inputs["image"][model_key] = np.zeros_like(template_image)
                 inputs["image_mask"][model_key] = np.False_
+        if self.model_type == _model.ModelType.PI0_FAST:
+            inputs["image"], inputs["image_mask"] = {"base_0_rgb": inputs["image"]["base_0_rgb"], "base_1_rgb": inputs["image"]["right_wrist_0_rgb"], "wrist_0_rgb": inputs["image"]["left_wrist_0_rgb"]}, {"base_0_rgb": inputs["image_mask"]["base_0_rgb"], "base_1_rgb": inputs["image_mask"]["right_wrist_0_rgb"], "wrist_0_rgb": inputs["image_mask"]["left_wrist_0_rgb"]}
 
         if "task_index" in data:
             inputs["task_index"] = data["task_index"]
@@ -410,10 +414,10 @@ class SLAIPiperOutputs(transforms.DataTransformFn):
         action_space = _space_from_action_config(self.action_space)
         field_slices = _field_slices_from_space(action_space)
         action_dim = len(_indices_from_space(action_space))
-        actions = np.asarray(data["action"][:, :action_dim])
+        actions = np.asarray(data["actions"][:, :action_dim])
         if "gripper" in action_space["ids"] and self.action_space.gripper is not None and self.action_space.gripper.type == "01":
             actions = actions.copy()
             for arm in action_space["arms"]:
                 gripper_slice = field_slices[f"{arm}_gripper"]
                 actions[:, gripper_slice] = _apply_gripper_01(actions[:, gripper_slice], self.action_space.gripper)
-        return {"action": actions}
+        return {"actions": actions}
