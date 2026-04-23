@@ -346,6 +346,33 @@ def get_model_image_key_map(config: ImageSpaceConfig) -> dict[str, str]:
     return {image_id: MODEL_IMAGE_KEYS[image_id] for image_id in _image_ids_from_config(config)}
 
 
+def extract_state_action_inputs(
+    full_state: np.ndarray,
+    actions: np.ndarray | None = None,
+    *,
+    state_space: StateSpaceConfig | None = None,
+    action_space: ActionSpaceConfig | None = None,
+) -> dict[str, np.ndarray]:
+    """Extract configured Piper state/action vectors from full dataset tensors."""
+    state_space = state_space or StateSpaceConfig()
+    action_space = action_space or ActionSpaceConfig()
+
+    inputs = {
+        "state": _extract_vec(
+            np.asarray(full_state),
+            _space_from_state_config(state_space),
+            state_space.gripper,
+        )
+    }
+    if actions is not None:
+        inputs["actions"] = _extract_vec(
+            np.asarray(actions),
+            _space_from_action_config(action_space),
+            action_space.gripper,
+        )
+    return inputs
+
+
 def _find_template_image(data: dict) -> np.ndarray:
     for dataset_key in DATASET_IMAGE_KEYS.values():
         if dataset_key in data:
@@ -368,9 +395,14 @@ class SLAIPiperInputs(transforms.DataTransformFn):
         inputs: dict = {}
 
         ##### STATE #####
-        state_space = _space_from_state_config(self.state_space)
-        full_state = np.asarray(data["observation.state"])
-        inputs["state"] = _extract_vec(full_state, state_space, self.state_space.gripper)
+        inputs.update(
+            extract_state_action_inputs(
+                data["observation.state"],
+                data.get("actions"),
+                state_space=self.state_space,
+                action_space=self.action_space,
+            )
+        )
 
         ##### IMAGES #####
         image_ids = set(_image_ids_from_config(self.image_space))
@@ -390,12 +422,6 @@ class SLAIPiperInputs(transforms.DataTransformFn):
 
         if "task_index" in data:
             inputs["task_index"] = data["task_index"]
-
-        ##### ACTIONS #####
-        if "actions" in data:
-            action_space = _space_from_action_config(self.action_space)
-            actions_2d = np.asarray(data["actions"])
-            inputs["actions"] = _extract_vec(actions_2d, action_space, self.action_space.gripper)
 
         if "prompt" in data:
             inputs["prompt"] = data["prompt"]
