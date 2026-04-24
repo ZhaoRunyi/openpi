@@ -1104,42 +1104,161 @@ _CONFIGS = [
         batch_size=32,
         fsdp_devices=4,
     ),
-    # TrainConfig(
-    #     name="pi05_slai_piper_items_hand_over_place_H10_0403",
-    #     model=pi0_config.Pi0Config(
-    #         pi05=True,
-    #         action_dim=slai_piper_policy.get_space_dim(slai_piper_policy.ActionSpaceConfig()),
-    #         action_horizon=10,
-    #     ),
-    #     data=LeRobotSLAIPiperDataConfig(
-    #         repo_id="ZhaoRunyi/Piper_items_hand_over_place_0403",
-    #         assets=AssetsConfig(assets_dir="/workspace/openpi_piper/assets", asset_id="pi05_slai_piper_items_hand_over_place_H10_0403/ZhaoRunyi/Piper_click_bell_0403"),
-    #         base_config=DataConfig(prompt_from_task=True),
-    #     ),
-    #     pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
-    #     save_interval=10000,
-    #     batch_size=32,
-    #     fsdp_devices=4,
-    # ),
-    # TrainConfig(
-    #     name="pi05_slai_piper_items_hand_over_place_H10_Aeegripper_Seeonly_0403",
-    #     model=pi0_config.Pi0Config(
-    #         pi05=True,
-    #         action_dim=slai_piper_policy.get_space_dim(slai_piper_policy.ActionSpaceConfig()),
-    #         action_horizon=10,
-    #     ),
-    #     data=LeRobotSLAIPiperDataConfig(
-    #         action_space=slai_piper_policy.ActionSpaceConfig(ids="ee_gripper"),
-    #         state_space=slai_piper_policy.StateSpaceConfig(ids="ee_only"),
-    #         repo_id="ZhaoRunyi/Piper_items_hand_over_place_0403",
-    #         assets=AssetsConfig(assets_dir="/workspace/openpi_piper/assets", asset_id="pi05_slai_piper_items_hand_over_place_H10_Aeegripper_Seeonly_0403/ZhaoRunyi/Piper_click_bell_0403"),
-    #         base_config=DataConfig(prompt_from_task=True),
-    #     ),
-    #     pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
-    #     save_interval=10000,
-    #     batch_size=32,
-    #     fsdp_devices=4,
-    # ),
+    # ================= DOCK TUBES ================= #
+    # ================= DOCK TUBES ================= #
+    # ================= DOCK TUBES ================= #
+    TrainConfig(
+        name="pi05_slai_piper_dock_tubes_H30_Ajointgripper_Sjointgripper_0423",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=slai_piper_policy.get_space_dim(slai_piper_policy.ActionSpaceConfig()),
+            action_horizon=30,
+        ),
+        data=LeRobotSLAIPiperDataConfig(
+            action_space=slai_piper_policy.ActionSpaceConfig(ids="joint_gripper"),
+            state_space=slai_piper_policy.StateSpaceConfig(ids="joint_gripper"),
+            repo_id="ZhaoRunyi/Piper_dock_tubes_0421",
+            assets=AssetsConfig(assets_dir="/workspace/openpi_piper/assets", asset_id="pi05_slai_piper_dock_tubes_H30_Ajointgripper_Sjointgripper_0423/ZhaoRunyi/Piper_dock_tubes_0421"),
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        save_interval=10000,
+        batch_size=32,
+        fsdp_devices=4,
+    ),
+    # ================= ITEMS HAND OVER PLACE ================= #
+    # ================= ITEMS HAND OVER PLACE ================= #
+    # ================= ITEMS HAND OVER PLACE ================= #
+    TrainConfig(
+        name="pi05_slai_piper_items_hand_over_place_H30_Ajointgripper_Sjointgripper_0423",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=slai_piper_policy.get_space_dim(slai_piper_policy.ActionSpaceConfig()),
+            action_horizon=30,
+        ),
+        data=LeRobotSLAIPiperDataConfig(
+            action_space=slai_piper_policy.ActionSpaceConfig(ids="joint_gripper"),
+            state_space=slai_piper_policy.StateSpaceConfig(ids="joint_gripper"),
+            repo_id="ZhaoRunyi/Piper_items_hand_over_place_0421",
+            assets=AssetsConfig(assets_dir="/workspace/openpi_piper/assets", asset_id="pi05_slai_piper_items_hand_over_place_H30_Ajointgripper_Sjointgripper_0423/ZhaoRunyi/Piper_items_hand_over_place_0421"),
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        save_interval=10000,
+        batch_size=32,
+        fsdp_devices=4,
+    ),
+    # ================= DEPRESS PIPETTE ================= #
+    # ================= DEPRESS PIPETTE ================= #
+    # ================= DEPRESS PIPETTE ================= #
+    TrainConfig(
+        name="pi05_slai_piper_depress_pipette_H30_Ajointgripper_Sjointgripper_0423",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=slai_piper_policy.get_space_dim(slai_piper_policy.ActionSpaceConfig()),
+            action_horizon=30,
+        ),
+        data=LeRobotSLAIPiperDataConfig(
+            action_space=slai_piper_policy.ActionSpaceConfig(ids="joint_gripper"),
+            state_space=slai_piper_policy.StateSpaceConfig(ids="joint_gripper"),
+            repo_id="ZhaoRunyi/Piper_depress_pipette_0421",
+            assets=AssetsConfig(assets_dir="/workspace/openpi_piper/assets", asset_id="pi05_slai_piper_depress_pipette_H30_Ajointgripper_Sjointgripper_0423/ZhaoRunyi/Piper_depress_pipette_0421"),
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        save_interval=10000,
+        batch_size=32,
+        fsdp_devices=4,
+    ),
+    # ================= POUR DUAL ================= #
+    # ================= POUR DUAL ================= #
+    # ================= POUR DUAL ================= #
+    TrainConfig(
+        name="pi05_slai_piper_pour_dual_H30_Ajointgripper_Sjointgripper_0423",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=slai_piper_policy.get_space_dim(slai_piper_policy.ActionSpaceConfig()),
+            action_horizon=30,
+        ),
+        data=LeRobotSLAIPiperDataConfig(
+            action_space=slai_piper_policy.ActionSpaceConfig(ids="joint_gripper"),
+            state_space=slai_piper_policy.StateSpaceConfig(ids="joint_gripper"),
+            repo_id="ZhaoRunyi/Piper_pour_dual_0421",
+            assets=AssetsConfig(assets_dir="/workspace/openpi_piper/assets", asset_id="pi05_slai_piper_pour_dual_H30_Ajointgripper_Sjointgripper_0423/ZhaoRunyi/Piper_pour_dual_0421"),
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        save_interval=10000,
+        batch_size=32,
+        fsdp_devices=4,
+    ),
+    # ================= OPEN DRAWER ================= #
+    # ================= OPEN DRAWER ================= #
+    # ================= OPEN DRAWER ================= #
+    TrainConfig(
+        name="pi05_slai_piper_open_drawer_H30_Ajointgripper_Sjointgripper_0423",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=slai_piper_policy.get_space_dim(slai_piper_policy.ActionSpaceConfig()),
+            action_horizon=30,
+        ),
+        data=LeRobotSLAIPiperDataConfig(
+            action_space=slai_piper_policy.ActionSpaceConfig(ids="joint_gripper"),
+            state_space=slai_piper_policy.StateSpaceConfig(ids="joint_gripper"),
+            repo_id="ZhaoRunyi/Piper_open_drawer_0421",
+            assets=AssetsConfig(assets_dir="/workspace/openpi_piper/assets", asset_id="pi05_slai_piper_open_drawer_H30_Ajointgripper_Sjointgripper_0423/ZhaoRunyi/Piper_open_drawer_0421"),
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        save_interval=10000,
+        batch_size=32,
+        fsdp_devices=4,
+    ),
+    # ================= REARR ================= #
+    # ================= REARR ================= #
+    # ================= REARR ================= #
+    TrainConfig(
+        name="pi05_slai_piper_rearr_H30_Ajointgripper_Sjointgripper_0423",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=slai_piper_policy.get_space_dim(slai_piper_policy.ActionSpaceConfig()),
+            action_horizon=30,
+        ),
+        data=LeRobotSLAIPiperDataConfig(
+            action_space=slai_piper_policy.ActionSpaceConfig(ids="joint_gripper"),
+            state_space=slai_piper_policy.StateSpaceConfig(ids="joint_gripper"),
+            repo_id="ZhaoRunyi/Piper_rearr_0421",
+            assets=AssetsConfig(assets_dir="/workspace/openpi_piper/assets", asset_id="pi05_slai_piper_rearr_H30_Ajointgripper_Sjointgripper_0423/ZhaoRunyi/Piper_rearr_0421"),
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        save_interval=10000,
+        batch_size=32,
+        fsdp_devices=4,
+    ),
+    # ================= CARRY_BASKET ================= #
+    # ================= CARRY_BASKET ================= #
+    # ================= CARRY_BASKET ================= #
+    TrainConfig(
+        name="pi05_slai_piper_carry_basket_H30_Ajointgripper_Sjointgripper_0423",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=slai_piper_policy.get_space_dim(slai_piper_policy.ActionSpaceConfig()),
+            action_horizon=30,
+        ),
+        data=LeRobotSLAIPiperDataConfig(
+            action_space=slai_piper_policy.ActionSpaceConfig(ids="joint_gripper"),
+            state_space=slai_piper_policy.StateSpaceConfig(ids="joint_gripper"),
+            repo_id="ZhaoRunyi/Piper_carry_basket_0421",
+            assets=AssetsConfig(assets_dir="/workspace/openpi_piper/assets", asset_id="pi05_slai_piper_carry_basket_H30_Ajointgripper_Sjointgripper_0423/ZhaoRunyi/Piper_carry_basket_0421"),
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        save_interval=10000,
+        batch_size=32,
+        fsdp_devices=4,
+    ),
+    
     #
     # ALOHA Sim configs. This config is used to demonstrate how to train on a simple simulated environment.
     #
