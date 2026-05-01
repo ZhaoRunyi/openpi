@@ -898,10 +898,10 @@ _CONFIGS = [
             base_config=DataConfig(prompt_from_task=True),
             extra_delta_transform=True,
         ),
-        batch_size=1024,
+        batch_size=256,
         pytorch_weight_path="/root/.cache/openpi/openpi-assets/checkpoints/pi0_base_torch",
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
-        num_train_steps=4000,
+        num_train_steps=15000,
         wandb_enabled=True,
     ),
     TrainConfig(
