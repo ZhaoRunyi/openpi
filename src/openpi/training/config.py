@@ -947,10 +947,10 @@ _CONFIGS = [
         wandb_enabled=True,
     ),
     TrainConfig(
-        name="pi0_embodichain_dual_arm_water_pouring",
+        name="pi0_embodichain_pour_dual",
         model=pi0_config.Pi0Config(),
         data=LeRobotEmbodiChainDataConfig(
-            repo_id="cobotmagic_Sim_dual_arm_water_pouring",
+            repo_id="cobotmagic_Sim_pour_dual",
             base_config=DataConfig(prompt_from_task=True),
             extra_delta_transform=True,
         ),
@@ -975,10 +975,10 @@ _CONFIGS = [
         wandb_enabled=True,
     ),
     TrainConfig(
-        name="pi0_embodichain_pan_open_pick_and_place",
+        name="pi0_embodichain_open_pan",
         model=pi0_config.Pi0Config(),
         data=LeRobotEmbodiChainDataConfig(
-            repo_id="cobotmagic_Sim_pan_open_pick_and_place",
+            repo_id="cobotmagic_Sim_open_pan",
             base_config=DataConfig(prompt_from_task=True),
             extra_delta_transform=True,
         ),
