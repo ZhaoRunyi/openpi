@@ -989,10 +989,10 @@ _CONFIGS = [
         wandb_enabled=True,
     ),
     TrainConfig(
-        name="pi0_embodichain_item_assembly",
+        name="pi0_embodichain_dock_tubes",
         model=pi0_config.Pi0Config(),
         data=LeRobotEmbodiChainDataConfig(
-            repo_id="cobotmagic_Sim_item_assembly",
+            repo_id="cobotmagic_Sim_dock_tubes",
             base_config=DataConfig(prompt_from_task=True),
             extra_delta_transform=True,
         ),
