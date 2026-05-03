@@ -1003,6 +1003,152 @@ _CONFIGS = [
         wandb_enabled=True,
     ),
 
+    # ================ PI05 ================ #
+    # ================ PI05 ================ #
+    # ================ PI05 ================ #
+    # ================ PI05 ================ #
+    # ================ PI05 ================ #
+    TrainConfig(
+        name="pi05_embodichain_Sim_click_bell",
+        model=pi0_config.Pi0Config(pi05=True),
+        data=LeRobotEmbodiChainDataConfig(
+            repo_id="embodichain_sim_data/cobotmagic_Sim_click_bell",
+            base_config=DataConfig(prompt_from_task=True),
+            extra_delta_transform=True,
+        ),
+        batch_size=512,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=10000,
+        save_interval=5000,
+        wandb_enabled=True,
+    ),
+    TrainConfig(
+        name="pi05_embodichain_Sim_beaker_mixer",
+        model=pi0_config.Pi0Config(pi05=True),
+        data=LeRobotEmbodiChainDataConfig(
+            repo_id="embodichain_sim_data/cobotmagic_Sim_beaker_mixer",
+            base_config=DataConfig(prompt_from_task=True),
+            extra_delta_transform=True,
+        ),
+        batch_size=512,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=10000,
+        save_interval=5000,
+        wandb_enabled=True,
+    ),
+    TrainConfig(
+        name="pi05_embodichain_Sim_items_handover_place",
+        model=pi0_config.Pi0Config(pi05=True),
+        data=LeRobotEmbodiChainDataConfig(
+            repo_id="embodichain_sim_data/cobotmagic_Sim_items_handover_place",
+            base_config=DataConfig(prompt_from_task=True),
+            extra_delta_transform=True,
+        ),
+        batch_size=512,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=10000,
+        save_interval=5000,
+        wandb_enabled=True,
+    ),
+    TrainConfig(
+        name="pi05_embodichain_Sim_manipulate_pipette",
+        model=pi0_config.Pi0Config(pi05=True),
+        data=LeRobotEmbodiChainDataConfig(
+            repo_id="embodichain_sim_data/cobotmagic_Sim_manipulate_pipette",
+            base_config=DataConfig(prompt_from_task=True),
+            extra_delta_transform=True,
+        ),
+        batch_size=512,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=10000,
+        save_interval=5000,
+        wandb_enabled=True,
+    ),
+    TrainConfig(
+        name="pi05_embodichain_Sim_open_pan",
+        model=pi0_config.Pi0Config(pi05=True),
+        data=LeRobotEmbodiChainDataConfig(
+            repo_id="embodichain_sim_data/cobotmagic_Sim_open_pan",
+            base_config=DataConfig(prompt_from_task=True),
+            extra_delta_transform=True,
+        ),
+        batch_size=512,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=10000,
+        save_interval=5000,
+        wandb_enabled=True,
+    ),
+    TrainConfig(
+        name="pi05_embodichain_Sim_pour_dual",
+        model=pi0_config.Pi0Config(pi05=True),
+        data=LeRobotEmbodiChainDataConfig(
+            repo_id="embodichain_sim_data/cobotmagic_Sim_pour_dual",
+            base_config=DataConfig(prompt_from_task=True),
+            extra_delta_transform=True,
+        ),
+        batch_size=512,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=10000,
+        save_interval=5000,
+        wandb_enabled=True,
+    ),
+    TrainConfig(
+        name="pi05_embodichain_Sim_rearr",
+        model=pi0_config.Pi0Config(pi05=True),
+        data=LeRobotEmbodiChainDataConfig(
+            repo_id="embodichain_sim_data/cobotmagic_Sim_rearr",
+            base_config=DataConfig(prompt_from_task=True),
+            extra_delta_transform=True,
+        ),
+        batch_size=512,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=10000,
+        save_interval=5000,
+        wandb_enabled=True,
+    ),
+    TrainConfig(
+        name="pi05_embodichain_Sim_sample_loading_duel",
+        model=pi0_config.Pi0Config(pi05=True),
+        data=LeRobotEmbodiChainDataConfig(
+            repo_id="embodichain_sim_data/cobotmagic_Sim_sample_loading_duel",
+            base_config=DataConfig(prompt_from_task=True),
+            extra_delta_transform=True,
+        ),
+        batch_size=512,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=10000,
+        save_interval=5000,
+        wandb_enabled=True,
+    ),
+    TrainConfig(
+        name="pi05_embodichain_Sim_dock_tubes",
+        model=pi0_config.Pi0Config(pi05=True),
+        data=LeRobotEmbodiChainDataConfig(
+            repo_id="embodichain_sim_data/cobotmagic_Sim_dock_tubes",
+            base_config=DataConfig(prompt_from_task=True),
+            extra_delta_transform=True,
+        ),
+        batch_size=512,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=10000,
+        save_interval=5000,
+        wandb_enabled=True,
+    ),
+    # ================ PI05 ================ #
+    # ================ PI05 ================ #
+    # ================ PI05 ================ #
+    # ================ PI05 ================ #
+    # ================ PI05 ================ #
+
     TrainConfig(
         name="debug_embodichain",
         model=pi0_config.Pi0Config(),
