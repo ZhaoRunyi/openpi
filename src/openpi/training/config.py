@@ -823,7 +823,7 @@ _CONFIGS = [
     # Fine-tuning EmbodiChain configs.
     #
     TrainConfig(
-        name="pi0_embodichain_press_button",
+        name="pi0_embodichain_click_bell",
         model=pi0_config.Pi0Config(),
         data=LeRobotEmbodiChainDataConfig(
             # Replace with your EmbodiChain LeRobot dataset repo id.
@@ -850,7 +850,7 @@ _CONFIGS = [
         wandb_enabled=True,
     ),
     TrainConfig(
-        name="pi0_embodichain_rearrange",
+        name="pi0_embodichain_rearr",
         model=pi0_config.Pi0Config(),
         data=LeRobotEmbodiChainDataConfig(
             # Replace with your EmbodiChain LeRobot dataset repo id.
@@ -891,7 +891,7 @@ _CONFIGS = [
         wandb_enabled=True,
     ),
     TrainConfig(
-        name="pi0_embodichain_manipulate_pipette",
+        name="pi0_embodichain_depress_pipette",
         model=pi0_config.Pi0Config(),
         data=LeRobotEmbodiChainDataConfig(
             repo_id="cobotmagic_Sim_manipulate_pipette",
@@ -919,7 +919,7 @@ _CONFIGS = [
         wandb_enabled=True,
     ),
     TrainConfig(
-        name="pi0_embodichain_sample_loading_duel",
+        name="pi0_embodichain_insert_test_tube",
         model=pi0_config.Pi0Config(),
         data=LeRobotEmbodiChainDataConfig(
             repo_id="cobotmagic_Sim_sample_loading_duel",
@@ -933,7 +933,7 @@ _CONFIGS = [
         wandb_enabled=True,
     ),
     TrainConfig(
-        name="pi0_embodichain_drawer_open_and_place",
+        name="pi0_embodichain_open_drawer",
         model=pi0_config.Pi0Config(),
         data=LeRobotEmbodiChainDataConfig(
             repo_id="cobotmagic_Sim_drawer_open_and_place",
@@ -961,7 +961,7 @@ _CONFIGS = [
         wandb_enabled=True,
     ),
     TrainConfig(
-        name="pi0_embodichain_basket",
+        name="pi0_embodichain_carry_basket",
         model=pi0_config.Pi0Config(),
         data=LeRobotEmbodiChainDataConfig(
             repo_id="cobotmagic_Sim_basket",
