@@ -961,10 +961,10 @@ _CONFIGS = [
         wandb_enabled=True,
     ),
     TrainConfig(
-        name="pi0_embodichain_basket_pick_and_place",
+        name="pi0_embodichain_basket",
         model=pi0_config.Pi0Config(),
         data=LeRobotEmbodiChainDataConfig(
-            repo_id="cobotmagic_Sim_basket_pick_and_place",
+            repo_id="cobotmagic_Sim_basket",
             base_config=DataConfig(prompt_from_task=True),
             extra_delta_transform=True,
         ),
