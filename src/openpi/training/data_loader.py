@@ -46,6 +46,10 @@ class DataLoader(Protocol[T_co]):
         """Get the data config for this data loader."""
         raise NotImplementedError("Subclasses of DataLoader should implement data_config.")
 
+    def data_configs(self) -> Sequence[_config.DataConfig]:
+        """Get all data configs for this data loader."""
+        raise NotImplementedError("Subclasses of DataLoader should implement data_configs.")
+
     def __iter__(self) -> Iterator[T_co]:
         raise NotImplementedError("Subclasses of DataLoader should implement __iter__.")
 
@@ -151,6 +155,32 @@ def create_torch_dataset(
     return dataset
 
 
+def create_lerobot_weighted_sampler(
+    dataset: Dataset,
+    dataset_weights: Sequence[float],
+    seed: int = 0,
+) -> torch.utils.data.WeightedRandomSampler:
+    child_datasets = getattr(dataset, "datasets", None)
+    if child_datasets is None:
+        raise ValueError("dataset_weights requires a concatenated dataset.")
+    if len(dataset_weights) != len(child_datasets):
+        raise ValueError("dataset_weights must have the same length as datasets.")
+    if any(weight < 0 for weight in dataset_weights) or sum(dataset_weights) <= 0:
+        raise ValueError("dataset_weights must be non-negative and contain a positive total weight.")
+
+    sample_weights = []
+    for dataset_weight, child_dataset in zip(dataset_weights, child_datasets, strict=True):
+        child_length = len(child_dataset)
+        if child_length == 0:
+            raise ValueError("Cannot sample from an empty LeRobot dataset.")
+        sample_weights.extend([float(dataset_weight) / child_length] * child_length)
+    generator = torch.Generator()
+    generator.manual_seed(seed)
+    return torch.utils.data.WeightedRandomSampler(
+        sample_weights, num_samples=len(sample_weights), replacement=True, generator=generator
+    )
+
+
 def create_rlds_dataset(
     data_config: _config.DataConfig,
     action_horizon: int,
@@ -239,12 +269,13 @@ def create_data_loader(
         skip_norm_stats: Whether to skip data normalization.
         framework: The framework to use ("jax" or "pytorch").
     """
-    data_config = config.data.create(config.assets_dirs, config.model)
-    logging.info(f"data_config: {data_config}")
+    data_factories = tuple(config.datasets) or (config.data,)
+    data_configs = tuple(factory.create(config.assets_dirs, config.model) for factory in data_factories)
+    logging.info(f"data_configs: {data_configs}")
 
-    if data_config.rlds_data_dir is not None:
+    if len(data_configs) == 1 and data_configs[0].rlds_data_dir is not None:
         return create_rlds_data_loader(
-            data_config,
+            data_configs[0],
             action_horizon=config.model.action_horizon,
             batch_size=config.batch_size,
             sharding=sharding,
@@ -253,8 +284,10 @@ def create_data_loader(
             skip_norm_stats=skip_norm_stats,
             framework=framework,
         )
+    if any(data_config.rlds_data_dir is not None for data_config in data_configs):
+        raise ValueError("TrainConfig.datasets only supports LeRobot datasets.")
     return create_torch_data_loader(
-        data_config,
+        data_configs if len(data_configs) > 1 else data_configs[0],
         model_config=config.model,
         action_horizon=config.model.action_horizon,
         batch_size=config.batch_size,
@@ -265,11 +298,12 @@ def create_data_loader(
         seed=config.seed,
         skip_norm_stats=skip_norm_stats,
         framework=framework,
+        dataset_weights=config.dataset_weights,
     )
 
 
 def create_torch_data_loader(
-    data_config: _config.DataConfig,
+    data_config: _config.DataConfig | Sequence[_config.DataConfig],
     model_config: _model.BaseModelConfig,
     action_horizon: int,
     batch_size: int,
@@ -281,6 +315,7 @@ def create_torch_data_loader(
     num_workers: int = 0,
     seed: int = 0,
     framework: str = "jax",
+    dataset_weights: Sequence[float] | None = None,
 ) -> DataLoader[tuple[_model.Observation, _model.Actions]]:
     """Create a data loader for training.
 
@@ -299,15 +334,25 @@ def create_torch_data_loader(
             execute in the main process.
         seed: The seed to use for shuffling the data.
     """
-    dataset = create_torch_dataset(data_config, action_horizon, model_config)
-    dataset = transform_dataset(dataset, data_config, skip_norm_stats=skip_norm_stats)
+    data_configs = (data_config,) if isinstance(data_config, _config.DataConfig) else tuple(data_config)
+    datasets = [
+        transform_dataset(
+            create_torch_dataset(single_data_config, action_horizon, model_config),
+            single_data_config,
+            skip_norm_stats=skip_norm_stats,
+        )
+        for single_data_config in data_configs
+    ]
+    dataset = datasets[0] if len(datasets) == 1 else torch.utils.data.ConcatDataset(datasets)
+    sampler = None
+    if len(datasets) > 1:
+        sampler = create_lerobot_weighted_sampler(dataset, dataset_weights or [1.0] * len(datasets), seed=seed)
 
     # Use TorchDataLoader for both frameworks
     # For PyTorch DDP, create DistributedSampler and divide batch size by world size
     # For JAX, divide by process count
-    sampler = None
     if framework == "pytorch":
-        if torch.distributed.is_initialized():
+        if sampler is None and torch.distributed.is_initialized():
             sampler = torch.utils.data.distributed.DistributedSampler(
                 dataset,
                 num_replicas=torch.distributed.get_world_size(),
@@ -334,7 +379,7 @@ def create_torch_data_loader(
         framework=framework,
     )
 
-    return DataLoaderImpl(data_config, data_loader)
+    return DataLoaderImpl(data_configs[0], data_loader, data_configs)
 
 
 def create_rlds_data_loader(
@@ -528,12 +573,21 @@ class RLDSDataLoader:
 
 
 class DataLoaderImpl(DataLoader):
-    def __init__(self, data_config: _config.DataConfig, data_loader: TorchDataLoader | RLDSDataLoader):
+    def __init__(
+        self,
+        data_config: _config.DataConfig,
+        data_loader: TorchDataLoader | RLDSDataLoader,
+        data_configs: Sequence[_config.DataConfig] | None = None,
+    ):
         self._data_config = data_config
+        self._data_configs = tuple(data_configs or (data_config,))
         self._data_loader = data_loader
 
     def data_config(self) -> _config.DataConfig:
         return self._data_config
+
+    def data_configs(self) -> Sequence[_config.DataConfig]:
+        return self._data_configs
 
     def __iter__(self):
         for batch in self._data_loader:
