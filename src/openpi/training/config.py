@@ -4,10 +4,8 @@ import abc
 from collections.abc import Sequence
 import dataclasses
 import difflib
-import importlib.util
 import logging
 import pathlib
-import sys
 from typing import Any, Literal, Protocol, TypeAlias
 
 import etils.epath as epath
@@ -22,6 +20,7 @@ import openpi.models.tokenizer as _tokenizer
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
+import openpi.policies.slai_piper_policy as slai_piper_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
@@ -30,16 +29,6 @@ import openpi.training.misc.roboarena_config as roboarena_config
 import openpi.training.optimizer as _optimizer
 import openpi.training.weight_loaders as weight_loaders
 import openpi.transforms as _transforms
-
-_SLAI_PIPER_POLICY_PATH = pathlib.Path("/workspace/openpi_piper/src/openpi/policies/slai_piper_policy.py")
-if _SLAI_PIPER_POLICY_PATH.exists():
-    _spec = importlib.util.spec_from_file_location("slai_piper_policy", _SLAI_PIPER_POLICY_PATH)
-    slai_piper_policy = importlib.util.module_from_spec(_spec)
-    assert _spec.loader is not None
-    sys.modules[_spec.name] = slai_piper_policy
-    _spec.loader.exec_module(slai_piper_policy)
-else:
-    slai_piper_policy = None
 
 ModelType: TypeAlias = _model.ModelType
 # Work around a tyro issue with using nnx.filterlib.Filter directly.
@@ -445,50 +434,48 @@ class LeRobotEmbodiChainDataConfig(DataConfigFactory):
         )
 
 
-if slai_piper_policy is not None:
+@dataclasses.dataclass(frozen=True)
+class LeRobotSLAIPiperDataConfig(DataConfigFactory):
+    default_prompt: str | None = None
+    state_space: Any = dataclasses.field(default_factory=slai_piper_policy.StateSpaceConfig)
+    action_space: Any = dataclasses.field(default_factory=slai_piper_policy.ActionSpaceConfig)
+    image_space: Any = dataclasses.field(default_factory=slai_piper_policy.ImageSpaceConfig)
+    action_sequence_keys: Sequence[str] = ("action",)
 
-    @dataclasses.dataclass(frozen=True)
-    class LeRobotSLAIPiperDataConfig(DataConfigFactory):
-        default_prompt: str | None = None
-        state_space: Any = dataclasses.field(default_factory=slai_piper_policy.StateSpaceConfig)
-        action_space: Any = dataclasses.field(default_factory=slai_piper_policy.ActionSpaceConfig)
-        image_space: Any = dataclasses.field(default_factory=slai_piper_policy.ImageSpaceConfig)
-        action_sequence_keys: Sequence[str] = ("action",)
-
-        @override
-        def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
-            repack_transform = _transforms.Group(
-                inputs=[
-                    _transforms.RepackTransform(
-                        {
-                            "observation.state": "observation.state",
-                            "observation.images.cam_high": "observation.images.cam_high",
-                            "observation.images.cam_left_wrist": "observation.images.cam_left_wrist",
-                            "observation.images.cam_right_wrist": "observation.images.cam_right_wrist",
-                            "actions": "action",
-                            "prompt": "prompt",
-                        }
-                    )
-                ]
-            )
-            data_transforms = _transforms.Group(
-                inputs=[
-                    slai_piper_policy.SLAIPiperInputs(
-                        model_type=model_config.model_type,
-                        state_space=self.state_space,
-                        action_space=self.action_space,
-                        image_space=self.image_space,
-                    )
-                ],
-                outputs=[slai_piper_policy.SLAIPiperOutputs(action_space=self.action_space)],
-            )
-            return dataclasses.replace(
-                self.create_base_config(assets_dirs, model_config),
-                repack_transforms=repack_transform,
-                data_transforms=data_transforms,
-                model_transforms=ModelTransformFactory(default_prompt=self.default_prompt)(model_config),
-                action_sequence_keys=self.action_sequence_keys,
-            )
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        repack_transform = _transforms.Group(
+            inputs=[
+                _transforms.RepackTransform(
+                    {
+                        "observation.state": "observation.state",
+                        "observation.images.cam_high": "observation.images.cam_high",
+                        "observation.images.cam_left_wrist": "observation.images.cam_left_wrist",
+                        "observation.images.cam_right_wrist": "observation.images.cam_right_wrist",
+                        "actions": "action",
+                        "prompt": "prompt",
+                    }
+                )
+            ]
+        )
+        data_transforms = _transforms.Group(
+            inputs=[
+                slai_piper_policy.SLAIPiperInputs(
+                    model_type=model_config.model_type,
+                    state_space=self.state_space,
+                    action_space=self.action_space,
+                    image_space=self.image_space,
+                )
+            ],
+            outputs=[slai_piper_policy.SLAIPiperOutputs(action_space=self.action_space)],
+        )
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            repack_transforms=repack_transform,
+            data_transforms=data_transforms,
+            model_transforms=ModelTransformFactory(default_prompt=self.default_prompt)(model_config),
+            action_sequence_keys=self.action_sequence_keys,
+        )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -633,7 +620,8 @@ class TrainConfig:
     # Optional per-dataset configs. If set, each dataset is transformed/normalized independently before mixing.
     datasets: Sequence[DataConfigFactory] = ()
     # Optional sampling weights for datasets. Defaults to equal dataset-level mixing.
-    dataset_weights: Sequence[float] | None = None
+    dataset_weights: tuple[float, ...] | None = None
+    norm_mode: Literal["per_dataset", "mixed"] = "per_dataset"
 
     # Base directory for config assets (e.g., norm stats).
     assets_base_dir: str = "./assets"
@@ -1111,6 +1099,7 @@ _CONFIGS = [
         save_interval=10000,
         wandb_enabled=True,
     ),
+    # == 0504 == #
     TrainConfig(
         name="pi05_embodichain_click_bell_0504",
         model=pi0_config.Pi0Config(pi05=True),
@@ -1141,6 +1130,58 @@ _CONFIGS = [
         save_interval=10000,
         wandb_enabled=True,
     ),
+    # == 0504 == #
+    # == 0505 == #
+    TrainConfig(
+        name="pi05_embodichain_click_bell_0505",
+        model=pi0_config.Pi0Config(pi05=True),
+        data=LeRobotEmbodiChainDataConfig(
+            repo_id="embodichain_sim_data/cobotmagic_Sim_click_bell_0505",
+            base_config=DataConfig(prompt_from_task=True),
+            extra_delta_transform=True,
+        ),
+        batch_size=32,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=30000,
+        save_interval=10000,
+        wandb_enabled=True,
+    ),
+    TrainConfig(
+        name="pi05_embodichain_click_bell_0505_simreal5050",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=slai_piper_policy.get_space_dim(slai_piper_policy.ActionSpaceConfig()),
+        ),
+        datasets=(
+            LeRobotEmbodiChainDataConfig(
+                repo_id="embodichain_sim_data/cobotmagic_Sim_click_bell_0505",
+                base_config=DataConfig(prompt_from_task=True),
+                extra_delta_transform=True,
+            ),
+            LeRobotSLAIPiperDataConfig(
+                repo_id="ZhaoRunyi/Piper_click_bell_0403",
+                state_space=slai_piper_policy.StateSpaceConfig(
+                    ids="joint_gripper",
+                    gripper=slai_piper_policy.GripperConfig(type="01"),
+                ),
+                action_space=slai_piper_policy.ActionSpaceConfig(
+                    ids="joint_gripper",
+                    gripper=slai_piper_policy.GripperConfig(type="01"),
+                ),
+                base_config=DataConfig(prompt_from_task=True),
+            ),
+        ),
+        dataset_weights=(0.5, 0.5),
+        norm_mode="mixed",
+        batch_size=32,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=30000,
+        save_interval=10000,
+        wandb_enabled=True,
+    ),
+    # == 0505 == #
     # =========== PI05 SPECIAL EXPS =========== #
 
     # ================ PI05 ================ #

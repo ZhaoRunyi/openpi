@@ -1,4 +1,5 @@
 from collections.abc import Iterator, Sequence
+import dataclasses
 import logging
 import multiprocessing
 import os
@@ -271,6 +272,10 @@ def create_data_loader(
     """
     data_factories = tuple(config.datasets) or (config.data,)
     data_configs = tuple(factory.create(config.assets_dirs, config.model) for factory in data_factories)
+    if config.norm_mode == "mixed" and len(data_configs) > 1:
+        data_configs = tuple(
+            dataclasses.replace(data_config, norm_stats=data_configs[0].norm_stats) for data_config in data_configs
+        )
     logging.info(f"data_configs: {data_configs}")
 
     if len(data_configs) == 1 and data_configs[0].rlds_data_dir is not None:
@@ -346,20 +351,22 @@ def create_torch_data_loader(
     dataset = datasets[0] if len(datasets) == 1 else torch.utils.data.ConcatDataset(datasets)
     sampler = None
     if len(datasets) > 1:
-        sampler = create_lerobot_weighted_sampler(dataset, dataset_weights or [1.0] * len(datasets), seed=seed)
+        rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
+        sampler = create_lerobot_weighted_sampler(dataset, dataset_weights or [1.0] * len(datasets), seed=seed + rank)
 
     # Use TorchDataLoader for both frameworks
     # For PyTorch DDP, create DistributedSampler and divide batch size by world size
     # For JAX, divide by process count
     if framework == "pytorch":
-        if sampler is None and torch.distributed.is_initialized():
-            sampler = torch.utils.data.distributed.DistributedSampler(
-                dataset,
-                num_replicas=torch.distributed.get_world_size(),
-                rank=torch.distributed.get_rank(),
-                shuffle=shuffle,
-                drop_last=True,
-            )
+        if torch.distributed.is_initialized():
+            if sampler is None:
+                sampler = torch.utils.data.distributed.DistributedSampler(
+                    dataset,
+                    num_replicas=torch.distributed.get_world_size(),
+                    rank=torch.distributed.get_rank(),
+                    shuffle=shuffle,
+                    drop_last=True,
+                )
             local_batch_size = batch_size // torch.distributed.get_world_size()
         else:
             local_batch_size = batch_size

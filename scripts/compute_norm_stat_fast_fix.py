@@ -14,6 +14,7 @@ but keeps the normalization *semantics* aligned with ``compute_norm_stats.py``:
 from __future__ import annotations
 
 from collections import OrderedDict
+import dataclasses
 import json
 import os
 from pathlib import Path
@@ -57,6 +58,23 @@ def _resolve_dataset_dir(base_dir: str | None, repo_id: str | None) -> Path:
     return Path(HF_LEROBOT_HOME) / repo_id
 
 
+def _resolve_dataset_dirs(base_dir: str | None, data_configs: tuple[_config.DataConfig, ...]) -> list[Path]:
+    if len(data_configs) == 1:
+        return [_resolve_dataset_dir(base_dir, data_configs[0].repo_id)]
+    root = Path(base_dir).expanduser() if base_dir is not None else Path(HF_LEROBOT_HOME)
+    return [root / str(data_config.repo_id) for data_config in data_configs]
+
+
+def _output_path(
+    config: _config.TrainConfig,
+    data_factory: _config.DataConfigFactory,
+    data_config: _config.DataConfig,
+) -> Path:
+    return Path(data_factory.assets.assets_dir or config.assets_dirs) / (
+        data_config.asset_id or data_config.repo_id
+    )
+
+
 def _episode_file_path(dataset_dir: Path, info: dict[str, Any], episode_index: int) -> Path:
     chunks_size = int(info.get("chunks_size", 1000))
     data_path = info.get("data_path", "data/chunk-{episode_chunk:03d}/episode_{episode_index:06d}.parquet")
@@ -68,7 +86,7 @@ def _detect_columns(info: dict[str, Any], state_col: str | None, action_col: str
     features = info.get("features", {})
 
     if state_col is None:
-        for candidate in ("observation.qpos", "observation.state"):
+        for candidate in ("observation.qpos", "observation.state", "state"):
             if candidate in features:
                 state_col = candidate
                 break
@@ -91,13 +109,46 @@ def _detect_columns(info: dict[str, Any], state_col: str | None, action_col: str
     return state_col, action_col
 
 
-def _get_delta_action_mask(data_config: _config.DataConfig) -> np.ndarray | None:
+def _validate_fast_transforms(data_config: _config.DataConfig) -> None:
+    transform_names = {
+        type(transform).__name__
+        for transform in data_config.data_transforms.inputs
+        if not isinstance(transform, transforms.DeltaActions)
+    }
+    if not transform_names <= {"EmbodiChainInputs", "LiberoInputs", "SLAIPiperInputs"}:
+        raise NotImplementedError(
+            "This fast script only supports an explicit norm-stat fast registry "
+            f"(got {sorted(transform_names)}). Use compute_norm_stats.py for this config."
+        )
+
+
+def _apply_fast_transform(transform: transforms.DataTransformFn, data: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
+    transform_name = type(transform).__name__
+    if transform_name in {"EmbodiChainInputs", "LiberoInputs"}:
+        return data
+    if transform_name == "SLAIPiperInputs":
+        from openpi.policies import slai_piper_policy
+
+        return slai_piper_policy.extract_state_action_inputs(
+            data["state"],
+            data.get("actions"),
+            state_space=transform.state_space,
+            action_space=transform.action_space,
+        )
+    if isinstance(transform, transforms.DeltaActions):
+        return transform(data)
+    raise NotImplementedError(f"Unsupported fast norm transform: {transform_name}")
+
+
+def _apply_fast_transforms(
+    data_config: _config.DataConfig,
+    states: np.ndarray,
+    action_chunks: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    data = {"state": states, "actions": action_chunks}
     for transform in data_config.data_transforms.inputs:
-        if isinstance(transform, transforms.DeltaActions):
-            if transform.mask is None:
-                return None
-            return np.asarray(transform.mask, dtype=bool)
-    return None
+        data = _apply_fast_transform(transform, data)
+    return np.asarray(data["state"], dtype=np.float32), np.asarray(data["actions"], dtype=np.float32)
 
 
 def _stack_column(df: pd.DataFrame, column: str) -> np.ndarray:
@@ -123,20 +174,6 @@ def _build_action_chunks(actions: np.ndarray, action_horizon: int) -> np.ndarray
     return actions[query_indices]
 
 
-def _apply_delta_actions(states: np.ndarray, action_chunks: np.ndarray, mask: np.ndarray | None) -> np.ndarray:
-    if mask is None:
-        return action_chunks
-
-    dims = min(mask.shape[-1], states.shape[-1], action_chunks.shape[-1])
-    if dims == 0:
-        return action_chunks
-
-    transformed = action_chunks.copy()
-    state_delta = np.where(mask[:dims], states[:, :dims], 0.0)
-    transformed[..., :dims] -= state_delta[:, None, :]
-    return transformed
-
-
 def _warn_about_extra_parquet(dataset_dir: Path, expected_files: list[Path]) -> None:
     data_dir = dataset_dir / "data"
     if not data_dir.exists():
@@ -160,47 +197,39 @@ def _warn_about_extra_parquet(dataset_dir: Path, expected_files: list[Path]) -> 
         )
 
 
-def _update_stats_in_batches(
-    stats: dict[str, normalize.RunningStats],
-    state_parts: list[np.ndarray],
-    action_parts: list[np.ndarray],
-    batch_size: int,
-) -> None:
-    states = np.concatenate(state_parts, axis=0)
-    actions = np.concatenate(action_parts, axis=0)
-    stats["state"].update(states)
-    stats["actions"].update(actions)
-
-
 class _EpisodeCache:
-    def __init__(self, max_size: int, state_col: str, action_col: str):
+    def __init__(self, max_size: int):
         self._max_size = max_size
-        self._state_col = state_col
-        self._action_col = action_col
-        self._cache: OrderedDict[int, tuple[np.ndarray, np.ndarray]] = OrderedDict()
+        self._cache: OrderedDict[tuple[Path, str, str], tuple[np.ndarray, np.ndarray]] = OrderedDict()
 
-    def get(self, episode_index: int, path: Path) -> tuple[np.ndarray, np.ndarray]:
-        if episode_index in self._cache:
-            self._cache.move_to_end(episode_index)
-            return self._cache[episode_index]
+    def get(self, path: Path, state_col: str, action_col: str) -> tuple[np.ndarray, np.ndarray]:
+        key = (path, state_col, action_col)
+        if key in self._cache:
+            self._cache.move_to_end(key)
+            return self._cache[key]
 
-        arrays = _load_episode_arrays(path, self._state_col, self._action_col)
-        self._cache[episode_index] = arrays
-        self._cache.move_to_end(episode_index)
+        arrays = _load_episode_arrays(path, state_col, action_col)
+        self._cache[key] = arrays
+        self._cache.move_to_end(key)
         while len(self._cache) > self._max_size:
             self._cache.popitem(last=False)
         return arrays
 
 
+@dataclasses.dataclass(frozen=True)
+class _FastEpisode:
+    episode: dict[str, Any]
+    path: Path
+    state_col: str
+    action_col: str
+    data_config: _config.DataConfig
+
+
 def _process_sequential(
     *,
     stats: dict[str, normalize.RunningStats],
-    episodes: list[dict[str, Any]],
-    episode_files: list[Path],
-    state_col: str,
-    action_col: str,
+    records: list[_FastEpisode],
     action_horizon: int,
-    delta_action_mask: np.ndarray | None,
     batch_size: int,
     max_samples: int,
 ) -> tuple[int, int]:
@@ -210,26 +239,24 @@ def _process_sequential(
     processed_samples = 0
     processed_files = 0
 
-    for episode, episode_file in tqdm(list(zip(episodes, episode_files, strict=True)), desc="Processing episodes"):
+    for record in tqdm(records, desc="Processing episodes"):
         if processed_samples >= max_samples:
             break
 
-        states, actions = _load_episode_arrays(episode_file, state_col, action_col)
-        expected_length = int(episode["length"])
-        if len(states) != expected_length:
+        full_states, full_actions = _load_episode_arrays(record.path, record.state_col, record.action_col)
+        expected_length = int(record.episode["length"])
+        if len(full_states) != expected_length:
             raise ValueError(
-                f"Episode {episode['episode_index']} length mismatch: "
-                f"metadata says {expected_length}, parquet has {len(states)} rows"
+                f"Episode {record.episode['episode_index']} length mismatch: "
+                f"metadata says {expected_length}, parquet has {len(full_states)} rows"
             )
 
         remaining = max_samples - processed_samples
-        if len(states) > remaining:
-            states = states[:remaining]
-            actions = actions[:remaining]
+        states = full_states[:remaining]
 
-        action_chunks = _build_action_chunks(actions if len(actions) == expected_length else _load_episode_arrays(episode_file, state_col, action_col)[1], action_horizon)
+        action_chunks = _build_action_chunks(full_actions, action_horizon)
         action_chunks = action_chunks[: len(states)]
-        action_chunks = _apply_delta_actions(states, action_chunks, delta_action_mask)
+        states, action_chunks = _apply_fast_transforms(record.data_config, states, action_chunks)
 
         buffered_states.append(states)
         buffered_actions.append(action_chunks)
@@ -261,26 +288,31 @@ def _process_sequential(
 def _process_shuffled_subset(
     *,
     stats: dict[str, normalize.RunningStats],
-    episodes: list[dict[str, Any]],
-    episode_files: list[Path],
-    state_col: str,
-    action_col: str,
+    records: list[_FastEpisode],
     action_horizon: int,
-    delta_action_mask: np.ndarray | None,
     batch_size: int,
     max_samples: int,
+    frame_weights: np.ndarray | None = None,
 ) -> tuple[int, int]:
     import torch
 
-    lengths = np.asarray([int(ep["length"]) for ep in episodes], dtype=np.int64)
+    lengths = np.asarray([int(record.episode["length"]) for record in records], dtype=np.int64)
     starts = np.concatenate([[0], np.cumsum(lengths)[:-1]])
     total_frames = int(lengths.sum())
     generator = torch.Generator()
     generator.manual_seed(0)
-    selected = torch.randperm(total_frames, generator=generator)[:max_samples].numpy()
+    if frame_weights is None:
+        selected = torch.randperm(total_frames, generator=generator)[:max_samples].numpy()
+    else:
+        selected = torch.multinomial(
+            torch.as_tensor(frame_weights, dtype=torch.double),
+            max_samples,
+            replacement=True,
+            generator=generator,
+        ).numpy()
 
-    cache = _EpisodeCache(max_size=64, state_col=state_col, action_col=action_col)
-    files_seen: set[int] = set()
+    cache = _EpisodeCache(max_size=64)
+    files_seen: set[Path] = set()
 
     for start in tqdm(range(0, len(selected), batch_size), desc="Processing shuffled batches"):
         batch_indices = selected[start : start + batch_size]
@@ -290,16 +322,18 @@ def _process_shuffled_subset(
         for global_idx in batch_indices:
             ep_pos = int(np.searchsorted(starts, global_idx, side="right") - 1)
             local_idx = int(global_idx - starts[ep_pos])
-            episode_index = int(episodes[ep_pos]["episode_index"])
-            states, actions = cache.get(episode_index, episode_files[ep_pos])
-            files_seen.add(episode_index)
+            record = records[ep_pos]
+            states, actions = cache.get(record.path, record.state_col, record.action_col)
+            files_seen.add(record.path)
 
             query_indices = np.minimum(local_idx + np.arange(action_horizon), len(actions) - 1)
-            state = states[local_idx]
-            action_chunk = actions[query_indices]
-            action_chunk = _apply_delta_actions(state[None, :], action_chunk[None, :, :], delta_action_mask)[0]
-            state_batch.append(state)
-            action_batch.append(action_chunk)
+            transformed_state, transformed_actions = _apply_fast_transforms(
+                record.data_config,
+                states[local_idx][None, :],
+                actions[query_indices][None, :, :],
+            )
+            state_batch.append(transformed_state[0])
+            action_batch.append(transformed_actions[0])
 
         stats["state"].update(np.stack(state_batch, axis=0))
         stats["actions"].update(np.stack(action_batch, axis=0))
@@ -324,100 +358,144 @@ def main(
         action_col: Optional override for the action parquet column.
     """
     config = _config.get_config(config_name)
-    data_config = config.data.create(config.assets_dirs, config.model)
+    data_factories = tuple(config.datasets) or (config.data,)
+    data_factory_groups = (data_factories,)
+    if config.norm_mode == "per_dataset":
+        data_factory_groups = tuple((factory,) for factory in data_factories)
 
-    if data_config.rlds_data_dir is not None:
-        raise NotImplementedError("This fast script only supports local LeRobot parquet datasets, not RLDS.")
-    if len(data_config.action_sequence_keys) != 1:
-        raise NotImplementedError(
-            "This fast script currently supports exactly one action sequence key. "
-            f"Got: {data_config.action_sequence_keys}"
-        )
+    for data_factories, data_configs in (
+        (factories, tuple(factory.create(config.assets_dirs, config.model) for factory in factories))
+        for factories in data_factory_groups
+    ):
+        for data_config in data_configs:
+            if data_config.rlds_data_dir is not None:
+                raise NotImplementedError("This fast script only supports local LeRobot parquet datasets, not RLDS.")
+            if len(data_config.action_sequence_keys) != 1:
+                raise NotImplementedError(
+                    "This fast script currently supports exactly one action sequence key. "
+                    f"Got: {data_config.action_sequence_keys}"
+                )
+            _validate_fast_transforms(data_config)
 
-    dataset_dir = _resolve_dataset_dir(base_dir, data_config.repo_id)
-    info_path = dataset_dir / "meta" / "info.json"
-    episodes_path = dataset_dir / "meta" / "episodes.jsonl"
-    if not info_path.exists() or not episodes_path.exists():
-        raise FileNotFoundError(f"Expected LeRobot metadata under {dataset_dir / 'meta'}")
+        dataset_dirs = _resolve_dataset_dirs(base_dir, data_configs)
+        records: list[_FastEpisode] = []
+        repo_frame_counts: list[int] = []
+        detected_schemas: list[tuple[str, str, int, int]] = []
+        first_info: dict[str, Any] | None = None
 
-    info = _read_json(info_path)
-    episodes = sorted(_read_jsonl(episodes_path), key=lambda ep: int(ep["episode_index"]))
-    state_col, action_col = _detect_columns(info, state_col, action_col)
-    episode_files = [_episode_file_path(dataset_dir, info, int(ep["episode_index"])) for ep in episodes]
-    _warn_about_extra_parquet(dataset_dir, episode_files)
+        for dataset_dir, data_config in zip(dataset_dirs, data_configs, strict=True):
+            info_path = dataset_dir / "meta" / "info.json"
+            episodes_path = dataset_dir / "meta" / "episodes.jsonl"
+            if not info_path.exists() or not episodes_path.exists():
+                raise FileNotFoundError(f"Expected LeRobot metadata under {dataset_dir / 'meta'}")
 
-    total_frames = sum(int(ep["length"]) for ep in episodes)
-    meta_total_frames = int(info.get("total_frames", total_frames))
-    if total_frames != meta_total_frames:
-        raise ValueError(f"episodes.jsonl lengths sum to {total_frames}, but info.json says {meta_total_frames}")
+            info = _read_json(info_path)
+            first_info = first_info or info
+            dataset_state_col, dataset_action_col = _detect_columns(info, state_col, action_col)
+            state_dim = int(info["features"][dataset_state_col]["shape"][-1])
+            action_dim = int(info["features"][dataset_action_col]["shape"][-1])
+            detected_schemas.append((dataset_state_col, dataset_action_col, state_dim, action_dim))
 
-    batch_size = int(config.batch_size)
-    if max_frames is not None and max_frames < total_frames:
-        num_batches = max_frames // batch_size
-        shuffle_subset = True
-    else:
-        num_batches = total_frames // batch_size
-        shuffle_subset = False
-    max_samples = num_batches * batch_size
+            dataset_episodes = sorted(_read_jsonl(episodes_path), key=lambda ep: int(ep["episode_index"]))
+            dataset_files = [_episode_file_path(dataset_dir, info, int(ep["episode_index"])) for ep in dataset_episodes]
+            _warn_about_extra_parquet(dataset_dir, dataset_files)
 
-    if max_samples < 2:
-        raise ValueError(f"Not enough samples to compute stats after drop_last: {max_samples}")
+            dataset_frames = sum(int(ep["length"]) for ep in dataset_episodes)
+            meta_total_frames = int(info.get("total_frames", dataset_frames))
+            if dataset_frames != meta_total_frames:
+                raise ValueError(
+                    f"{dataset_dir}: episodes.jsonl lengths sum to {dataset_frames}, "
+                    f"but info.json says {meta_total_frames}"
+                )
+            records.extend(
+                _FastEpisode(
+                    episode=episode,
+                    path=episode_file,
+                    state_col=dataset_state_col,
+                    action_col=dataset_action_col,
+                    data_config=data_config,
+                )
+                for episode, episode_file in zip(dataset_episodes, dataset_files, strict=True)
+            )
+            repo_frame_counts.append(dataset_frames)
 
-    delta_action_mask = _get_delta_action_mask(data_config)
-    stats = {"state": normalize.RunningStats(), "actions": normalize.RunningStats()}
+        total_frames = sum(repo_frame_counts)
+        batch_size = int(config.batch_size)
+        weighted_sampling = config.norm_mode == "mixed" and len(data_configs) > 1
+        if max_frames is not None and max_frames < total_frames:
+            num_batches = max_frames // batch_size
+            shuffle_subset = True
+        else:
+            num_batches = total_frames // batch_size
+            shuffle_subset = weighted_sampling
+        max_samples = num_batches * batch_size
 
-    print(f"Reading dataset: {dataset_dir}")
-    print(f"Config: {config_name}")
-    print(f"State column: {state_col}")
-    print(f"Action column: {action_col}")
-    print(f"FPS: {info.get('fps')}")
-    print(f"Episodes: {len(episodes)}")
-    print(f"Total frames from metadata: {total_frames}")
-    print(f"Batch size: {batch_size}")
-    print(f"Action horizon: {config.model.action_horizon}")
-    print(f"Samples used after drop_last: {max_samples}")
-    print(f"DeltaActions enabled: {delta_action_mask is not None}")
+        if max_samples < 2:
+            raise ValueError(f"Not enough samples to compute stats after drop_last: {max_samples}")
 
-    if shuffle_subset:
-        files_processed, samples_processed = _process_shuffled_subset(
-            stats=stats,
-            episodes=episodes,
-            episode_files=episode_files,
-            state_col=state_col,
-            action_col=action_col,
-            action_horizon=config.model.action_horizon,
-            delta_action_mask=delta_action_mask,
-            batch_size=batch_size,
-            max_samples=max_samples,
-        )
-    else:
-        files_processed, samples_processed = _process_sequential(
-            stats=stats,
-            episodes=episodes,
-            episode_files=episode_files,
-            state_col=state_col,
-            action_col=action_col,
-            action_horizon=config.model.action_horizon,
-            delta_action_mask=delta_action_mask,
-            batch_size=batch_size,
-            max_samples=max_samples,
-        )
+        frame_weights = None
+        if weighted_sampling:
+            dataset_weights = (
+                tuple(config.dataset_weights) if config.dataset_weights is not None else (1.0,) * len(data_configs)
+            )
+            if len(dataset_weights) != len(repo_frame_counts):
+                raise ValueError("dataset_weights must have the same length as datasets.")
+            if any(weight < 0 for weight in dataset_weights) or sum(dataset_weights) <= 0:
+                raise ValueError("dataset_weights must be non-negative and contain a positive total weight.")
+            frame_weights = np.concatenate(
+                [
+                    np.full(frame_count, float(dataset_weight) / frame_count)
+                    for dataset_weight, frame_count in zip(dataset_weights, repo_frame_counts, strict=True)
+                ]
+            )
 
-    print(f"\nProcessed {files_processed} files with {samples_processed} samples")
+        stats = {"state": normalize.RunningStats(), "actions": normalize.RunningStats()}
 
-    norm_stats = {key: value.get_statistics() for key, value in stats.items()}
-    for key, stat_result in norm_stats.items():
-        print(f"\n{key} statistics:")
-        print(f"  Shape: {stat_result.mean.shape}")
-        print(f"  Mean: {stat_result.mean}")
-        print(f"  Std: {stat_result.std}")
-        print(f"  Q01: {stat_result.q01}")
-        print(f"  Q99: {stat_result.q99}")
+        print(f"Reading dataset: {dataset_dirs}")
+        print(f"Config: {config_name}")
+        print(f"Norm mode: {config.norm_mode}")
+        print(f"Detected schemas: {detected_schemas}")
+        print(f"FPS: {first_info.get('fps') if first_info else None}")
+        print(f"Episodes: {len(records)}")
+        print(f"Total frames from metadata: {total_frames}")
+        print(f"Batch size: {batch_size}")
+        print(f"Action horizon: {config.model.action_horizon}")
+        print(f"Samples used after drop_last: {max_samples}")
 
-    output_path = config.assets_dirs / data_config.repo_id
-    print(f"\nWriting stats to: {output_path}")
-    normalize.save(output_path, norm_stats)
-    print(f"Normalization stats saved to {output_path}")
+        if shuffle_subset:
+            files_processed, samples_processed = _process_shuffled_subset(
+                stats=stats,
+                records=records,
+                action_horizon=config.model.action_horizon,
+                batch_size=batch_size,
+                max_samples=max_samples,
+                frame_weights=frame_weights,
+            )
+        else:
+            files_processed, samples_processed = _process_sequential(
+                stats=stats,
+                records=records,
+                action_horizon=config.model.action_horizon,
+                batch_size=batch_size,
+                max_samples=max_samples,
+            )
+
+        print(f"\nProcessed {files_processed} files with {samples_processed} samples")
+
+        norm_stats = {key: value.get_statistics() for key, value in stats.items()}
+        for key, stat_result in norm_stats.items():
+            print(f"\n{key} statistics:")
+            print(f"  Shape: {stat_result.mean.shape}")
+            print(f"  Mean: {stat_result.mean}")
+            print(f"  Std: {stat_result.std}")
+            print(f"  Q01: {stat_result.q01}")
+            print(f"  Q99: {stat_result.q99}")
+
+        for data_factory, data_config in zip(data_factories, data_configs, strict=True):
+            output_path = _output_path(config, data_factory, data_config)
+            print(f"\nWriting stats to: {output_path}")
+            normalize.save(output_path, norm_stats)
+            print(f"Normalization stats saved to {output_path}")
 
 
 if __name__ == "__main__":
