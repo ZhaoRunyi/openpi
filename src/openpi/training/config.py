@@ -1053,6 +1053,66 @@ _CONFIGS = [
         wandb_enabled=True,
     ),
 
+    # =========== PI0 SPECIAL EXPS =========== #
+    TrainConfig(
+        name="pi0_embodichain_Sim_click_bell_realaftersim",
+        model=pi0_config.Pi0Config(),
+        data=LeRobotSLAIPiperDataConfig(
+            repo_id="ZhaoRunyi/Piper_click_bell_0403",
+            state_space=slai_piper_policy.StateSpaceConfig(
+                ids="joint_gripper",
+                gripper=slai_piper_policy.GripperConfig(type="raw"),
+            ),
+            action_space=slai_piper_policy.ActionSpaceConfig(
+                ids="joint_gripper",
+                gripper=slai_piper_policy.GripperConfig(type="raw"),
+            ),
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        checkpoint_base_dir="/aoss/openpi_sim_ckpts",
+        exp_name="real_click_bell_from_sim30000_noopt_raw_gripper",
+        pytorch_weight_path="/aoss/openpi_sim_ckpts/pi0_embodichain_Sim_click_bell/30000",
+        batch_size=128,
+        num_train_steps=15_000,
+        save_interval=5_000,
+        wandb_enabled=True,
+    ),
+
+    TrainConfig(
+        name="pi0_embodichain_Sim_click_bell_reallike",
+        model=pi0_config.Pi0Config(),
+        data=LeRobotEmbodiChainDataConfig(
+            repo_id="embodichain_sim_data/cobotmagic_Sim_click_bell_reallike_0507",
+            base_config=DataConfig(prompt_from_task=True),
+            extra_delta_transform=True,
+        ),
+        checkpoint_base_dir="/aoss/openpi_sim_ckpts",
+        exp_name="sim_click_bell_reallike_0507_from_sim30000_noopt",
+        pytorch_weight_path="/aoss/openpi_sim_ckpts/pi0_embodichain_Sim_click_bell/30000",
+        batch_size=128,
+        num_train_steps=15_000,
+        save_interval=5_000,
+        wandb_enabled=True,
+    ),
+
+    TrainConfig(
+        name="pi0_embodichain_Sim_click_bell_reallike_randtable_0507",
+        model=pi0_config.Pi0Config(),
+        data=LeRobotEmbodiChainDataConfig(
+            repo_id="embodichain_sim_data/cobotmagic_Sim_click_bell_reallike_randtable_0507",
+            base_config=DataConfig(prompt_from_task=True),
+            extra_delta_transform=True,
+        ),
+        checkpoint_base_dir="/aoss/openpi_sim_ckpts",
+        exp_name="sim_click_bell_reallike_randtable_0507_from_sim30000_noopt",
+        pytorch_weight_path="/aoss/openpi_sim_ckpts/pi0_embodichain_Sim_click_bell/30000",
+        batch_size=128,
+        num_train_steps=15_000,
+        save_interval=5_000,
+        wandb_enabled=True,
+    ),
+    # =========== PI0 SPECIAL EXPS =========== #
+
     # =========== PI05 SPECIAL EXPS =========== #
     TrainConfig(
         name="pi05_embodichain_click_bell_abs",
