@@ -1399,6 +1399,100 @@ _CONFIGS = [
         wandb_enabled=True,
     ),
     # == 0505 == #
+
+    # === FINAL === #
+    TrainConfig(
+        name="pi05_embodichain_click_bell_H10",
+        model=pi0_config.Pi0Config(pi05=True, action_horizon=10),
+        data=LeRobotEmbodiChainDataConfig(
+            repo_id="embodichain_sim_data/cobotmagic_Sim_click_bell",
+            base_config=DataConfig(prompt_from_task=True),
+            extra_delta_transform=True,
+        ),
+        batch_size=32,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=30000,
+        save_interval=10000,
+        wandb_enabled=True,
+    ),
+    TrainConfig(
+        name="pi05_embodichain_beaker_mixer_H10",
+        model=pi0_config.Pi0Config(pi05=True, action_horizon=10),
+        data=LeRobotEmbodiChainDataConfig(
+            repo_id="embodichain_sim_data/cobotmagic_Sim_beaker_mixer",
+            base_config=DataConfig(prompt_from_task=True),
+            extra_delta_transform=True,
+        ),
+        batch_size=32,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=30000,
+        save_interval=10000,
+        wandb_enabled=True,
+    ),
+    TrainConfig(
+        name="pi05_embodichain_depress_pipette_H10",
+        model=pi0_config.Pi0Config(pi05=True, action_horizon=10),
+        data=LeRobotEmbodiChainDataConfig(
+            repo_id="embodichain_sim_data/cobotmagic_Sim_depress_pipette",
+            base_config=DataConfig(prompt_from_task=True),
+            extra_delta_transform=True,
+        ),
+        batch_size=32,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=30000,
+        save_interval=10000,
+        wandb_enabled=True,
+    ),
+    TrainConfig(
+        name="pi05_embodichain_items_handover_place_H10",
+        model=pi0_config.Pi0Config(pi05=True, action_horizon=10),
+        data=LeRobotEmbodiChainDataConfig(
+            repo_id="embodichain_sim_data/cobotmagic_Sim_items_handover_place",
+            base_config=DataConfig(prompt_from_task=True),
+            extra_delta_transform=True,
+        ),
+        batch_size=32,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=30000,
+        save_interval=10000,
+        wandb_enabled=True,
+    ),
+    TrainConfig(
+        name="pi05_embodichain_open_drawer_H10",
+        model=pi0_config.Pi0Config(pi05=True, action_horizon=10),
+        data=LeRobotEmbodiChainDataConfig(
+            repo_id="embodichain_sim_data/cobotmagic_Sim_open_drawer",
+            base_config=DataConfig(prompt_from_task=True),
+            extra_delta_transform=True,
+        ),
+        batch_size=32,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=30000,
+        save_interval=10000,
+        wandb_enabled=True,
+    ),
+    TrainConfig(
+        name="pi05_embodichain_pour_water_dual_H10",
+        model=pi0_config.Pi0Config(pi05=True, action_horizon=10),
+        data=LeRobotEmbodiChainDataConfig(
+            repo_id="embodichain_sim_data/cobotmagic_Sim_pour_water_dual",
+            base_config=DataConfig(prompt_from_task=True),
+            extra_delta_transform=True,
+        ),
+        batch_size=32,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=30000,
+        save_interval=10000,
+        wandb_enabled=True,
+    ),
+    # === FINAL === #
+
     # =========== PI05 SPECIAL EXPS =========== #
 
     # ================ PI05 ================ #
