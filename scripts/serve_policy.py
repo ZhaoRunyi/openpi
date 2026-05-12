@@ -50,6 +50,7 @@ class Args:
     port: int = 8000
     # Record the policy's behavior for debugging.
     record: bool = False
+    num_steps: int | None = None
 
     # Specifies how to load the policy. If not provided, the default policy for the environment will be used.
     policy: Checkpoint | Default = dataclasses.field(default_factory=Default)
@@ -98,6 +99,8 @@ def create_policy(args: Args) -> _policy.Policy:
 
 def main(args: Args) -> None:
     policy = create_policy(args)
+    if args.num_steps is not None:
+        policy._sample_kwargs["num_steps"] = args.num_steps
     policy_metadata = policy.metadata
 
     # Record the policy's behavior.
