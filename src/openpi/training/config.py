@@ -684,7 +684,7 @@ _CONFIGS = [
         data=LeRobotSLAIFrankaDataConfig(
             # repo_id="ZhaoRunyi/Franka_Real_PnP_test",
             repo_id="ZhaoRunyi/Franka_Real_PnP_new",
-            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_slaifranka_pnp/ZhaoRunyi/Franka_Real_PnP_new"),
+            assets=AssetsConfig(assets_dir="/workspace/openpi_franka/assets", asset_id="pi0_slaifranka_pnp/ZhaoRunyi/Franka_Real_PnP_new"),
         ),
         # policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
         save_interval = 5000,
@@ -698,7 +698,7 @@ _CONFIGS = [
             # repo_id="ZhaoRunyi/Franka_Real_PnP_test",
             repo_id="ZhaoRunyi/Franka_Real_PnP_0122",
             # repo_id="ZhaoRunyi/test", # XXX XXX XXX
-            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_slaifranka_pnp_0122_horizon20/ZhaoRunyi/Franka_Real_PnP_0122"),
+            assets=AssetsConfig(assets_dir="/workspace/openpi_franka/assets", asset_id="pi0_slaifranka_pnp_0122_horizon20/ZhaoRunyi/Franka_Real_PnP_0122"),
             base_config=DataConfig(
                 prompt_from_task=True,
             ),
@@ -715,7 +715,7 @@ _CONFIGS = [
         data=LeRobotSLAIFrankaDataConfig(
             # repo_id="ZhaoRunyi/Franka_Real_PnP_test",
             repo_id="ZhaoRunyi/Franka_Real_Test_0208",
-            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_slaifranka_pnp_0208_test/ZhaoRunyi/Franka_Real_Test_0208"),
+            assets=AssetsConfig(assets_dir="/workspace/openpi_franka/assets", asset_id="pi0_slaifranka_pnp_0208_test/ZhaoRunyi/Franka_Real_Test_0208"),
             base_config=DataConfig(
                 prompt_from_task=True,
             ),
@@ -732,7 +732,7 @@ _CONFIGS = [
         data=LeRobotSLAIFrankaDataConfig(
             # repo_id="ZhaoRunyi/Franka_Real_PnP_test",
             repo_id="ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305",
-            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305"),
+            assets=AssetsConfig(assets_dir="/workspace/openpi_franka/assets", asset_id="pi0_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305"),
             base_config=DataConfig(
                 prompt_from_task=True,
             ),
@@ -749,7 +749,7 @@ _CONFIGS = [
         data=LeRobotSLAIFrankaDataConfig(
             # repo_id="ZhaoRunyi/Franka_Real_PnP_test",
             repo_id="ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305",
-            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305"),
+            assets=AssetsConfig(assets_dir="/workspace/openpi_franka/assets", asset_id="pi0_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305"),
             base_config=DataConfig(
                 prompt_from_task=True,
             ),
@@ -766,7 +766,7 @@ _CONFIGS = [
         data=LeRobotSLAIFrankaDataConfig(
             # repo_id="ZhaoRunyi/Franka_Real_PnP_test",
             repo_id="ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305",
-            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305"),
+            assets=AssetsConfig(assets_dir="/workspace/openpi_franka/assets", asset_id="pi0_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305"),
             base_config=DataConfig(
                 prompt_from_task=True,
             ),
@@ -783,7 +783,7 @@ _CONFIGS = [
         data=LeRobotSLAIFrankaDataConfig(
             # repo_id="ZhaoRunyi/Franka_Real_PnP_test",
             repo_id="ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305",
-            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305"),
+            assets=AssetsConfig(assets_dir="/workspace/openpi_franka/assets", asset_id="pi0_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305"),
             base_config=DataConfig(
                 prompt_from_task=True,
             ),
@@ -800,7 +800,7 @@ _CONFIGS = [
         data=LeRobotSLAIFrankaDataConfig(
             # repo_id="ZhaoRunyi/Franka_Real_PnP_test",
             repo_id="ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305",
-            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305"),
+            assets=AssetsConfig(assets_dir="/workspace/openpi_franka/assets", asset_id="pi0_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305"),
             base_config=DataConfig(
                 prompt_from_task=True,
             ),
@@ -816,7 +816,7 @@ _CONFIGS = [
         model=pi0_config.Pi0Config(action_horizon=30, pi05=True, discrete_state_input=False),
         data=LeRobotSLAIFrankaDataConfig(
             repo_id="ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305",
-            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305"),
+            assets=AssetsConfig(assets_dir="/workspace/openpi_franka/assets", asset_id="pi0_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305"),
             base_config=DataConfig(prompt_from_task=True),
             state_space=slai_franka_policy.StateSpaceConfig(ids="9d")
         ),
@@ -830,7 +830,7 @@ _CONFIGS = [
         model=pi0_config.Pi0Config(action_horizon=30, pi05=True, discrete_state_input=False),
         data=LeRobotSLAIFrankaDataConfig(
             repo_id="ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305",
-            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi0_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305"),
+            assets=AssetsConfig(assets_dir="/workspace/openpi_franka/assets", asset_id="pi0_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0305"),
             base_config=DataConfig(prompt_from_task=True),
             state_space=slai_franka_policy.StateSpaceConfig(
                 ids="10d",
@@ -851,7 +851,7 @@ _CONFIGS = [
         model=pi0_config.Pi0Config(action_horizon=30, pi05=True, discrete_state_input=False),
         data=LeRobotSLAIFrankaDataConfig(
             repo_id="ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0316",
-            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi05_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_horizon30_state9d_0316/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0316"),
+            assets=AssetsConfig(assets_dir="/workspace/openpi_franka/assets", asset_id="pi05_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_horizon30_state9d_0316/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0316"),
             base_config=DataConfig(prompt_from_task=True),
             state_space=slai_franka_policy.StateSpaceConfig(ids="9d")
         ),
@@ -865,7 +865,7 @@ _CONFIGS = [
         model=pi0_config.Pi0Config(action_horizon=30, pi05=True, discrete_state_input=False),
         data=LeRobotSLAIFrankaDataConfig(
             repo_id="ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0317",
-            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi05_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_horizon30_state9d_0317/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0317"),
+            assets=AssetsConfig(assets_dir="/workspace/openpi_franka/assets", asset_id="pi05_slaifranka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_horizon30_state9d_0317/ZhaoRunyi/Franka_pick_up_the_beaker_and_place_it_on_alcohol_lamp_0317"),
             base_config=DataConfig(prompt_from_task=True),
             state_space=slai_franka_policy.StateSpaceConfig(ids="9d")
         ),
@@ -879,7 +879,63 @@ _CONFIGS = [
         model=pi0_config.Pi0Config(action_horizon=30, pi05=True, discrete_state_input=False),
         data=LeRobotSLAIFrankaDataConfig(
             repo_id="ZhaoRunyi/Franka_pick_up_the_test_tube_with_a_clamp_and_hold_it_over_the_alcohol_lamp_to_heat_it_0318",
-            assets=AssetsConfig(assets_dir="/workspace/openpi/assets", asset_id="pi05_slaifranka_pick_up_the_test_tube_with_a_clamp_and_hold_it_over_the_alcohol_lamp_to_heat_it_horizon30_state9d_0318/ZhaoRunyi/Franka_pick_up_the_test_tube_with_a_clamp_and_hold_it_over_the_alcohol_lamp_to_heat_it_0318"),
+            assets=AssetsConfig(assets_dir="/workspace/openpi_franka/assets", asset_id="pi05_slaifranka_pick_up_the_test_tube_with_a_clamp_and_hold_it_over_the_alcohol_lamp_to_heat_it_horizon30_state9d_0318/ZhaoRunyi/Franka_pick_up_the_test_tube_with_a_clamp_and_hold_it_over_the_alcohol_lamp_to_heat_it_0318"),
+            base_config=DataConfig(prompt_from_task=True),
+            state_space=slai_franka_policy.StateSpaceConfig(ids="9d")
+        ),
+        save_interval=10000,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        batch_size=32,
+        fsdp_devices=4
+    ),
+    TrainConfig(
+        name="pi05_slaifranka2_grasp_the_spoon_extract_the_spoon_scoop_the_solid_pour_the_solid_and_place_the_spoon_state9d_0420",
+        model=pi0_config.Pi0Config(action_horizon=30, pi05=True, discrete_state_input=False),
+        data=LeRobotSLAIFrankaDataConfig(
+            repo_id="ZhaoRunyi/Franka2_grasp_the_spoon_extract_the_spoon_scoop_the_solid_pour_the_solid_and_place_the_spoon_0324", # HF_LEROBOT_HOME=/aoss/data
+            assets=AssetsConfig(assets_dir="/workspace/openpi_franka/assets", asset_id="pi05_slaifranka2_grasp_the_spoon_extract_the_spoon_scoop_the_solid_pour_the_solid_and_place_the_spoon_state9d_0420/ZhaoRunyi/Franka2_grasp_the_spoon_extract_the_spoon_scoop_the_solid_pour_the_solid_and_place_the_spoon_0324"),
+            base_config=DataConfig(prompt_from_task=True),
+            state_space=slai_franka_policy.StateSpaceConfig(ids="9d")
+        ),
+        save_interval=10000,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        batch_size=32,
+        fsdp_devices=4
+    ),
+    TrainConfig(
+        name="pi05_slaifranka2_pour_stir_and_shake_mixture_0420",
+        model=pi0_config.Pi0Config(action_horizon=30, pi05=True, discrete_state_input=False),
+        data=LeRobotSLAIFrankaDataConfig(
+            repo_id="ZhaoRunyi/Franka2_pour_stir_and_shake_mixture_0330", # HF_LEROBOT_HOME=/aoss/data
+            assets=AssetsConfig(assets_dir="/workspace/openpi_franka/assets", asset_id="pi05_slaifranka2_pour_stir_and_shake_mixture_0420/ZhaoRunyi/Franka2_pour_stir_and_shake_mixture_0330"),
+            base_config=DataConfig(prompt_from_task=True),
+            state_space=slai_franka_policy.StateSpaceConfig(ids="9d")
+        ),
+        save_interval=10000,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        batch_size=32,
+        fsdp_devices=4
+    ),
+    TrainConfig(
+        name="pi05_slaifranka1_short_task1_0520",
+        model=pi0_config.Pi0Config(action_horizon=30, pi05=True, discrete_state_input=False),
+        data=LeRobotSLAIFrankaDataConfig(
+            repo_id="scientific_embodied/Franka1_short_task1", # HF_LEROBOT_HOME=/aoss/data
+            assets=AssetsConfig(assets_dir="/workspace/openpi_franka/assets", asset_id="pi05_slaifranka1_short_task1_0520/scientific_embodied/Franka1_short_task1"),
+            base_config=DataConfig(prompt_from_task=True),
+            state_space=slai_franka_policy.StateSpaceConfig(ids="9d")
+        ),
+        save_interval=10000,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        batch_size=32,
+        fsdp_devices=4
+    ),
+    TrainConfig(
+        name="pi05_slaifranka1_short_task2_0520",
+        model=pi0_config.Pi0Config(action_horizon=30, pi05=True, discrete_state_input=False),
+        data=LeRobotSLAIFrankaDataConfig(
+            repo_id="scientific_embodied/Franka1_short_task2", # HF_LEROBOT_HOME=/aoss/data
+            assets=AssetsConfig(assets_dir="/workspace/openpi_franka/assets", asset_id="pi05_slaifranka1_short_task2_0520/scientific_embodied/Franka1_short_task2"),
             base_config=DataConfig(prompt_from_task=True),
             state_space=slai_franka_policy.StateSpaceConfig(ids="9d")
         ),
