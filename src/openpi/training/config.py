@@ -1237,6 +1237,34 @@ _CONFIGS = [
         save_interval=10000,
         wandb_enabled=True,
     ),
+    TrainConfig(
+        name="pi05_real2sim_items_hand_over_place_H30",
+        model=pi0_config.Pi0Config(pi05=True, action_horizon=30),
+        data=LeRobotEmbodiChainDataConfig(
+            repo_id="ZhaoRunyi/Piper_items_hand_over_place_0421_real2sim",
+            base_config=DataConfig(prompt_from_task=True),
+            extra_delta_transform=False,
+        ),
+        batch_size=32,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        num_train_steps=30000,
+        save_interval=10000,
+        wandb_enabled=True,
+    ),
+    TrainConfig(
+        name="pi05_real2sim_dr_items_hand_over_place_H30",
+        model=pi0_config.Pi0Config(pi05=True, action_horizon=30),
+        data=LeRobotEmbodiChainDataConfig(
+            repo_id="ZhaoRunyi/Piper_items_hand_over_place_0421_real2sim_dr",
+            base_config=DataConfig(prompt_from_task=True),
+            extra_delta_transform=False,
+        ),
+        batch_size=32,
+        pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
+        num_train_steps=30000,
+        save_interval=10000,
+        wandb_enabled=True,
+    ),
     # ========== SPECIAL =========== #
 
     TrainConfig(
