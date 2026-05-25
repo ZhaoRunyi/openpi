@@ -603,6 +603,11 @@ class TrainConfig:
 
     # Determines the data to be trained on.
     data: DataConfigFactory = dataclasses.field(default_factory=FakeDataConfig)
+    # Optional per-dataset configs. If set, each dataset is transformed/normalized independently before mixing.
+    datasets: Sequence[DataConfigFactory] = ()
+    # Optional sampling weights for datasets. Defaults to equal dataset-level mixing.
+    dataset_weights: tuple[float, ...] | None = None
+    norm_mode: Literal["per_dataset", "mixed"] = "per_dataset"
 
     # Base directory for config assets (e.g., norm stats).
     assets_base_dir: str = "./assets"
@@ -623,6 +628,7 @@ class TrainConfig:
     log_interval: int = 100
     # How often (in steps) to save checkpoints.
     save_interval: int = 1000
+    save_newest_interval: int = 2000
     # If set, any existing checkpoints matching step % keep_period == 0 will not be deleted.
     keep_period: int | None = 5000
 
@@ -942,6 +948,25 @@ _CONFIGS = [
         save_interval=10000,
         pytorch_weight_path="/workspace/ckpts/pi05_base_pytorch",
         batch_size=32,
+        fsdp_devices=4
+    ),
+    TrainConfig(
+        name="pi05_slaifranka1_mix_solution_place_to_magnetic_stirrer_0521",
+        model=pi0_config.Pi0Config(action_horizon=30, pi05=True, discrete_state_input=False),
+        data=LeRobotSLAIFrankaDataConfig(
+            repo_id="scientific_embodied/Franka1_mix_solution_place_to_magnetic_stirrer_0512", # HF_LEROBOT_HOME=/aoss/data
+            assets=AssetsConfig(assets_dir="/workspace/openpi_franka/assets", asset_id="pi05_slaifranka1_mix_solution_place_to_magnetic_stirrer_0521/scientific_embodied/Franka1_mix_solution_place_to_magnetic_stirrer_0512"),
+            base_config=DataConfig(prompt_from_task=True),
+            state_space=slai_franka_policy.StateSpaceConfig(ids="9d")
+        ),
+        save_interval=10000,
+        num_train_steps=50000,
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=4000,
+            decay_steps=50000,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/workspace/ckpts/pi05_base/params"),
+        batch_size=128,
         fsdp_devices=4
     ),
     ########################## SLAI_FRANKA ##########################

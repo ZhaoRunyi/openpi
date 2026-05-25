@@ -125,7 +125,7 @@ def set_seed(seed: int, local_rank: int):
 def build_datasets(config: _config.TrainConfig):
     # Use the unified data loader with PyTorch framework
     data_loader = _data.create_data_loader(config, framework="pytorch", shuffle=True)
-    return data_loader, data_loader.data_config()
+    return data_loader, data_loader.data_configs()
 
 
 def get_model_state_dict(model):
@@ -146,16 +146,16 @@ def get_model_parameters(model):
     )
 
 
-def save_checkpoint(model, optimizer, global_step, config, is_main, data_config):
+def save_checkpoint(model, optimizer, global_step, config, is_main, data_configs, checkpoint_name: str | None = None):
     """Save a checkpoint with model state, optimizer state, and metadata."""
     if not is_main:
         return
 
     # Only save if it's time to save or if it's the final step
-    if (global_step % config.save_interval == 0 and global_step > 0) or global_step == config.num_train_steps - 1:
+    if checkpoint_name is not None or (global_step % config.save_interval == 0 and global_step > 0) or global_step == config.num_train_steps - 1:
         # Create temporary directory for atomic checkpoint saving
-        final_ckpt_dir = config.checkpoint_dir / f"{global_step}"
-        tmp_ckpt_dir = config.checkpoint_dir / f"tmp_{global_step}"
+        final_ckpt_dir = config.checkpoint_dir / (checkpoint_name or f"{global_step}")
+        tmp_ckpt_dir = config.checkpoint_dir / f"tmp_{checkpoint_name or global_step}"
 
         # Remove any existing temp directory and create new one
         if tmp_ckpt_dir.exists():
@@ -178,9 +178,10 @@ def save_checkpoint(model, optimizer, global_step, config, is_main, data_config)
         torch.save(metadata, tmp_ckpt_dir / "metadata.pt")
 
         # save norm stats
-        norm_stats = data_config.norm_stats
-        if norm_stats is not None and data_config.asset_id is not None:
-            _normalize.save(tmp_ckpt_dir / "assets" / data_config.asset_id, norm_stats)
+        for data_config in data_configs:
+            norm_stats = data_config.norm_stats
+            if norm_stats is not None and data_config.asset_id is not None:
+                _normalize.save(tmp_ckpt_dir / "assets" / data_config.asset_id, norm_stats)
 
         # Atomically move temp directory to final location
         if final_ckpt_dir.exists():
@@ -190,7 +191,7 @@ def save_checkpoint(model, optimizer, global_step, config, is_main, data_config)
         logging.info(f"Saved checkpoint at step {global_step} -> {final_ckpt_dir}")
 
         # Log checkpoint to wandb
-        if config.wandb_enabled:
+        if config.wandb_enabled and checkpoint_name is None:
             wandb.log({"checkpoint_step": global_step}, step=global_step)
 
 
@@ -202,10 +203,10 @@ def load_checkpoint(model, optimizer, checkpoint_dir, device):
         if d.is_dir() and d.name.isdigit() and not d.name.startswith("tmp_")
     ]
 
-    if not checkpoint_steps:
+    if not checkpoint_steps and not (checkpoint_dir / "newest").is_dir():
         raise FileNotFoundError(f"No checkpoints found in {checkpoint_dir}")
 
-    latest_step = max(checkpoint_steps)
+    latest_step = "newest" if (checkpoint_dir / "newest").is_dir() else max(checkpoint_steps)
     ckpt_dir = checkpoint_dir / f"{latest_step}"
 
     # Clear memory before loading checkpoints
@@ -278,6 +279,8 @@ def get_latest_checkpoint_step(checkpoint_dir):
         for d in checkpoint_dir.iterdir()
         if d.is_dir() and d.name.isdigit() and not d.name.startswith("tmp_")
     ]
+    if (checkpoint_dir / "newest" / "metadata.pt").exists():
+        return torch.load(checkpoint_dir / "newest" / "metadata.pt", map_location="cpu", weights_only=False).get("global_step")
     return max(checkpoint_steps) if checkpoint_steps else None
 
 
@@ -356,7 +359,7 @@ def train_loop(config: _config.TrainConfig):
     )
 
     # Pass the original batch size to data loader - it will handle DDP splitting internally
-    loader, data_config = build_datasets(config)
+    loader, data_configs = build_datasets(config)
 
     # Log sample images to wandb on first batch
     if is_main and config.wandb_enabled and not resuming:
@@ -602,7 +605,9 @@ def train_loop(config: _config.TrainConfig):
 
             global_step += 1
             # Save checkpoint using the new mechanism
-            save_checkpoint(model, optim, global_step, config, is_main, data_config)
+            save_checkpoint(model, optim, global_step, config, is_main, data_configs)
+            if config.save_newest_interval > 0 and global_step % config.save_newest_interval == 0:
+                save_checkpoint(model, optim, global_step, config, is_main, data_configs, "newest")
 
             # Update progress bar
             if pbar is not None:
@@ -614,6 +619,8 @@ def train_loop(config: _config.TrainConfig):
     # Close progress bar
     if pbar is not None:
         pbar.close()
+    if is_main:
+        shutil.rmtree(config.checkpoint_dir / "newest", ignore_errors=True)
 
     # Finish wandb run
     if is_main and config.wandb_enabled:
