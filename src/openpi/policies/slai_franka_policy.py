@@ -212,7 +212,7 @@ class SLAIFrankaOutputs(transforms.DataTransformFn):
     def __call__(self, data: dict) -> dict:
         action_fields = _fields_from_action_config(self.action_space)
         dim = sum(FIELD_SLICES[f].stop - FIELD_SLICES[f].start for f in action_fields)
-        actions = np.asarray(data["action"][:, :dim])
+        actions = np.asarray(data["actions"][:, :dim])
         if "gripper" in action_fields and self.action_space.gripper is not None and self.action_space.gripper.type == "01":
             gripper_len = FIELD_SLICES["gripper"].stop - FIELD_SLICES["gripper"].start
             start = actions.shape[-1] - gripper_len
@@ -220,4 +220,4 @@ class SLAIFrankaOutputs(transforms.DataTransformFn):
                 actions[:, :start],
                 _apply_gripper_01(actions[:, start : start + gripper_len], self.action_space.gripper.threshold),
             ], axis=-1)
-        return {"action": actions}
+        return {"actions": actions}

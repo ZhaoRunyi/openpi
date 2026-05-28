@@ -967,7 +967,8 @@ _CONFIGS = [
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("/workspace/ckpts/pi05_base/params"),
         batch_size=128,
-        fsdp_devices=4
+        fsdp_devices=4,
+        num_workers=16
     ),
     ########################## SLAI_FRANKA ##########################
     ########################## SLAI_FRANKA ##########################
