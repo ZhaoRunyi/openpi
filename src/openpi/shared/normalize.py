@@ -135,7 +135,9 @@ def save(directory: pathlib.Path | str, norm_stats: dict[str, NormStats]) -> Non
     """Save the normalization stats to a directory."""
     path = pathlib.Path(directory) / "norm_stats.json"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(serialize_json(norm_stats))
+    tmp_path = path.with_name(path.name + ".tmp")
+    tmp_path.write_text(serialize_json(norm_stats))
+    tmp_path.replace(path)
 
 
 def load(directory: pathlib.Path | str) -> dict[str, NormStats]:

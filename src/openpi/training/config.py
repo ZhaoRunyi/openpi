@@ -557,6 +557,11 @@ class TrainConfig:
 
     # Determines the data to be trained on.
     data: DataConfigFactory = dataclasses.field(default_factory=FakeDataConfig)
+    # Optional per-dataset configs. If set, each dataset is transformed/normalized independently before mixing.
+    datasets: Sequence[DataConfigFactory] = ()
+    # Optional sampling weights for datasets. Defaults to equal dataset-level mixing.
+    dataset_weights: tuple[float, ...] | None = None
+    norm_mode: Literal["per_dataset", "mixed"] = "per_dataset"
 
     # Base directory for config assets (e.g., norm stats).
     assets_base_dir: str = "./assets"

@@ -87,18 +87,31 @@ def create_default_policy(env: EnvMode, *, default_prompt: str | None = None) ->
 
 def create_policy(args: Args) -> _policy.Policy:
     """Create a policy from the given arguments."""
+    checkpoint = resolve_checkpoint(args)
+    return _policy_config.create_trained_policy(
+        _config.get_config(checkpoint.config), checkpoint.dir, default_prompt=args.default_prompt
+    )
+
+
+def resolve_checkpoint(args: Args) -> Checkpoint:
+    """Resolve the checkpoint that backs this server instance."""
     match args.policy:
         case Checkpoint():
-            return _policy_config.create_trained_policy(
-                _config.get_config(args.policy.config), args.policy.dir, default_prompt=args.default_prompt
-            )
+            return args.policy
         case Default():
-            return create_default_policy(args.env, default_prompt=args.default_prompt)
+            if checkpoint := DEFAULT_CHECKPOINT.get(args.env):
+                return checkpoint
+            raise ValueError(f"Unsupported environment mode: {args.env}")
 
 
 def main(args: Args) -> None:
+    checkpoint = resolve_checkpoint(args)
     policy = create_policy(args)
-    policy_metadata = policy.metadata
+    policy_metadata = dict(policy.metadata)
+    policy_metadata["ckpt_dir"] = checkpoint.dir
+    policy_metadata["checkpoint_dir"] = checkpoint.dir
+    policy_metadata["model_path"] = checkpoint.dir
+    policy_metadata["train_config"] = checkpoint.config
 
     # Record the policy's behavior.
     if args.record:

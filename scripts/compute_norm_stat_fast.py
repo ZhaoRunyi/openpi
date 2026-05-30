@@ -46,17 +46,49 @@ def _resolve_base_dir(repo_id: str, base_dir: str | None) -> Path:
     return path
 
 
-def _validate_piper_config(config: _config.TrainConfig) -> _config.LeRobotSLAIPiperDataConfig:
-    if not isinstance(config.data, _config.LeRobotSLAIPiperDataConfig):
+def _resolve_dataset_roots(
+    piper_datas: tuple[_config.LeRobotSLAIPiperDataConfig, ...],
+    base_dir: str | None,
+) -> tuple[Path, ...]:
+    if len(piper_datas) == 1:
+        return (_resolve_base_dir(piper_datas[0].repo_id, base_dir),)
+
+    root = Path(base_dir) if base_dir is not None else Path(os.environ.get("HF_LEROBOT_HOME", "/workspace/data"))
+    dataset_roots = tuple(root / piper_data.repo_id for piper_data in piper_datas)
+    missing = [str(path) for path in dataset_roots if not path.exists()]
+    if missing:
+        raise ValueError(f"Dataset directories do not exist: {missing}")
+    return dataset_roots
+
+
+def _validate_piper_data(data_factory: _config.DataConfigFactory) -> _config.LeRobotSLAIPiperDataConfig:
+    if not isinstance(data_factory, _config.LeRobotSLAIPiperDataConfig):
         raise TypeError(
             "compute_norm_stats_fast_piper.py only supports LeRobotSLAIPiperDataConfig, "
-            f"got {type(config.data).__name__}."
+            f"got {type(data_factory).__name__}."
         )
-    if tuple(config.data.action_sequence_keys) != ("action",):
+    if tuple(data_factory.action_sequence_keys) != ("action",):
         raise ValueError(
             "compute_norm_stats_fast_piper.py currently only supports action_sequence_keys=('action',)."
         )
-    return config.data
+    return data_factory
+
+
+def _get_piper_data_groups(
+    config: _config.TrainConfig,
+) -> tuple[tuple[_config.LeRobotSLAIPiperDataConfig, ...], ...]:
+    data_factories = tuple(config.datasets) or (config.data,)
+    piper_datas = tuple(_validate_piper_data(data_factory) for data_factory in data_factories)
+    if config.norm_mode == "per_dataset":
+        return tuple((piper_data,) for piper_data in piper_datas)
+    return (piper_datas,)
+
+
+def _validate_piper_config(config: _config.TrainConfig) -> _config.LeRobotSLAIPiperDataConfig:
+    groups = _get_piper_data_groups(config)
+    if len(groups) != 1 or len(groups[0]) != 1:
+        raise ValueError("This comparison mode only supports a single Piper dataset.")
+    return groups[0][0]
 
 
 def _load_episode_lengths(dataset_root: Path) -> dict[int, int]:
@@ -94,23 +126,59 @@ def _collect_episode_files(dataset_root: Path) -> dict[int, Path]:
     return files
 
 
-def _build_selected_indices(total_frames: int, batch_size: int, max_frames: int | None, seed: int) -> np.ndarray:
+def _selected_frame_count(total_frames: int, batch_size: int, max_frames: int | None) -> int:
     if max_frames is not None and max_frames < total_frames:
         num_batches = max_frames // batch_size
         if num_batches == 0:
             raise ValueError(
                 f"max_frames={max_frames} is too small for batch_size={batch_size}; original script would emit 0 batches."
             )
+    else:
+        num_batches = total_frames // batch_size
+        if num_batches == 0:
+            raise ValueError(
+                f"Dataset with {total_frames} frames is too small for batch_size={batch_size}; original script would fail."
+            )
+    return num_batches * batch_size
+
+
+def _build_selected_indices(total_frames: int, batch_size: int, max_frames: int | None, seed: int) -> np.ndarray:
+    num_samples = _selected_frame_count(total_frames, batch_size, max_frames)
+    if max_frames is not None and max_frames < total_frames:
         generator = torch.Generator()
         generator.manual_seed(seed)
-        return torch.randperm(total_frames, generator=generator)[: num_batches * batch_size].cpu().numpy()
+        return torch.randperm(total_frames, generator=generator)[:num_samples].cpu().numpy()
 
-    num_batches = total_frames // batch_size
-    if num_batches == 0:
-        raise ValueError(
-            f"Dataset with {total_frames} frames is too small for batch_size={batch_size}; original script would fail."
-        )
-    return np.arange(num_batches * batch_size, dtype=np.int64)
+    return np.arange(num_samples, dtype=np.int64)
+
+
+def _build_weighted_sample_indices(
+    frame_counts: tuple[int, ...],
+    dataset_weights: tuple[float, ...] | None,
+    batch_size: int,
+    max_frames: int | None,
+    seed: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    weights = tuple(1.0 for _ in frame_counts) if dataset_weights is None else dataset_weights
+    if len(weights) != len(frame_counts):
+        raise ValueError("dataset_weights must have the same length as datasets.")
+    if any(weight < 0 for weight in weights) or sum(weights) <= 0:
+        raise ValueError("dataset_weights must be non-negative and contain a positive total weight.")
+
+    num_samples = _selected_frame_count(sum(frame_counts), batch_size, max_frames)
+    generator = torch.Generator()
+    generator.manual_seed(seed)
+    dataset_indices = torch.multinomial(
+        torch.as_tensor(weights, dtype=torch.float64),
+        num_samples=num_samples,
+        replacement=True,
+        generator=generator,
+    ).cpu().numpy()
+    frame_indices = np.empty(num_samples, dtype=np.int64)
+    for dataset_index, frame_count in enumerate(frame_counts):
+        mask = dataset_indices == dataset_index
+        frame_indices[mask] = torch.randint(frame_count, (int(mask.sum()),), generator=generator).cpu().numpy()
+    return dataset_indices.astype(np.int64, copy=False), frame_indices
 
 
 def _load_needed_episode_arrays(
@@ -165,6 +233,116 @@ def _build_batch_arrays(
         batch_actions[mask] = episode_action[query_indices]
 
     return batch_states, batch_actions
+
+
+def _build_dataset_metadata(dataset_root: Path) -> dict:
+    episode_lengths = _load_episode_lengths(dataset_root)
+    episode_files = _collect_episode_files(dataset_root)
+    episode_ids = np.array(sorted(episode_lengths), dtype=np.int64)
+    lengths = np.array([episode_lengths[int(episode_id)] for episode_id in episode_ids], dtype=np.int64)
+    episode_offsets = np.concatenate([[0], np.cumsum(lengths)])
+    return {
+        "episode_files": episode_files,
+        "episode_offsets": episode_offsets,
+        "total_frames": int(episode_offsets[-1]),
+    }
+
+
+def _check_mixed_output_dims(piper_datas: tuple[_config.LeRobotSLAIPiperDataConfig, ...]) -> None:
+    dims = [
+        (
+            slai_piper_policy.get_space_dim(piper_data.state_space),
+            slai_piper_policy.get_space_dim(piper_data.action_space),
+        )
+        for piper_data in piper_datas
+    ]
+    if len(set(dims)) > 1:
+        raise ValueError(f"Cannot compute mixed norm stats with inconsistent Piper Inputs output dimensions: {dims}")
+
+
+def _process_piper_group(
+    config: _config.TrainConfig,
+    piper_datas: tuple[_config.LeRobotSLAIPiperDataConfig, ...],
+    dataset_roots: tuple[Path, ...],
+    max_frames: int | None,
+) -> tuple[dict[str, normalize.NormStats], tuple | None]:
+    if len(piper_datas) > 1:
+        _check_mixed_output_dims(piper_datas)
+
+    metadata = tuple(_build_dataset_metadata(dataset_root) for dataset_root in dataset_roots)
+    frame_counts = tuple(meta["total_frames"] for meta in metadata)
+    if len(piper_datas) == 1:
+        frame_indices = _build_selected_indices(frame_counts[0], config.batch_size, max_frames, config.seed)
+        dataset_indices = np.zeros(len(frame_indices), dtype=np.int64)
+    else:
+        dataset_indices, frame_indices = _build_weighted_sample_indices(
+            frame_counts,
+            tuple(config.dataset_weights) if config.dataset_weights is not None else None,
+            config.batch_size,
+            max_frames,
+            config.seed,
+        )
+
+    print(f"Selected frames: {len(frame_indices)}")
+    print(f"Action horizon: {config.model.action_horizon}")
+    caches = []
+    for dataset_index, (piper_data, dataset_root, meta) in enumerate(
+        zip(piper_datas, dataset_roots, metadata, strict=True)
+    ):
+        selected_for_dataset = frame_indices[dataset_indices == dataset_index]
+        selected_episode_ids = np.unique(
+            np.searchsorted(meta["episode_offsets"][1:], selected_for_dataset, side="right")
+        )
+        print(f"\nReading data from: {dataset_root}")
+        print(f"Total frames: {meta['total_frames']}")
+        print(f"State space: {piper_data.state_space}")
+        print(f"Action space: {piper_data.action_space}")
+        episode_states, episode_actions = _load_needed_episode_arrays(meta["episode_files"], selected_episode_ids)
+        caches.append((meta["episode_offsets"], episode_states, episode_actions))
+
+    stats = {key: normalize.RunningStats() for key in ("state", "actions")}
+    for batch_start in tqdm.tqdm(
+        range(0, len(frame_indices), config.batch_size),
+        desc="Processing Piper batches",
+        total=len(frame_indices) // config.batch_size,
+    ):
+        batch_dataset_indices = dataset_indices[batch_start : batch_start + config.batch_size]
+        batch_frame_indices = frame_indices[batch_start : batch_start + config.batch_size]
+        batch_state_inputs = None
+        batch_action_inputs = None
+        for dataset_index in np.unique(batch_dataset_indices):
+            mask = batch_dataset_indices == dataset_index
+            episode_offsets, episode_states, episode_actions = caches[int(dataset_index)]
+            batch_states, batch_actions = _build_batch_arrays(
+                batch_frame_indices[mask],
+                episode_offsets,
+                episode_states,
+                episode_actions,
+                config.model.action_horizon,
+            )
+            inputs = slai_piper_policy.extract_state_action_inputs(
+                batch_states,
+                batch_actions,
+                state_space=piper_datas[int(dataset_index)].state_space,
+                action_space=piper_datas[int(dataset_index)].action_space,
+            )
+            if batch_state_inputs is None or batch_action_inputs is None:
+                batch_state_inputs = np.empty((len(batch_frame_indices), inputs["state"].shape[-1]), dtype=np.float32)
+                batch_action_inputs = np.empty(
+                    (len(batch_frame_indices), *inputs["actions"].shape[1:]), dtype=np.float32
+                )
+            batch_state_inputs[mask] = inputs["state"]
+            batch_action_inputs[mask] = inputs["actions"]
+
+        stats["state"].update(np.ascontiguousarray(batch_state_inputs))
+        stats["actions"].update(np.ascontiguousarray(batch_action_inputs))
+
+    norm_stats = {key: value.get_statistics() for key, value in stats.items()}
+    context = None
+    if len(piper_datas) == 1:
+        episode_offsets, episode_states, episode_actions = caches[0]
+        context = (episode_offsets, episode_states, episode_actions, frame_indices)
+    return norm_stats, context
 
 
 def _compute_reference_stats(config: _config.TrainConfig, max_frames: int | None) -> dict[str, normalize.NormStats]:
@@ -310,72 +488,35 @@ def main(
 ):
     """Compute fast-but-aligned norm stats for a Piper config."""
     config = _config.get_config(config_name)
-    piper_data = _validate_piper_config(config)
+    piper_data_groups = _get_piper_data_groups(config)
 
-    dataset_root = _resolve_base_dir(piper_data.repo_id, base_dir)
-    episode_lengths = _load_episode_lengths(dataset_root)
-    episode_files = _collect_episode_files(dataset_root)
-    episode_ids = np.array(sorted(episode_lengths), dtype=np.int64)
-    lengths = np.array([episode_lengths[int(episode_id)] for episode_id in episode_ids], dtype=np.int64)
-    episode_offsets = np.concatenate([[0], np.cumsum(lengths)])
+    for piper_datas in piper_data_groups:
+        dataset_roots = _resolve_dataset_roots(piper_datas, base_dir)
+        norm_stats, reference_context = _process_piper_group(config, piper_datas, dataset_roots, max_frames)
 
-    total_frames = int(episode_offsets[-1])
-    selected_indices = _build_selected_indices(total_frames, config.batch_size, max_frames, config.seed)
-    selected_episode_ids = np.unique(np.searchsorted(episode_offsets[1:], selected_indices, side="right"))
+        if save:
+            for piper_data in piper_datas:
+                output_path = Path(piper_data.assets.assets_dir or config.assets_dirs) / (
+                    piper_data.assets.asset_id or piper_data.repo_id
+                )
+                output_path.mkdir(parents=True, exist_ok=True)
+                print(f"\nWriting stats to: {output_path}")
+                normalize.save(output_path, norm_stats)
 
-    print(f"Reading data from: {dataset_root}")
-    print(f"Total frames: {total_frames}")
-    print(f"Selected frames: {len(selected_indices)}")
-    print(f"Action horizon: {config.model.action_horizon}")
-    print(f"State space: {piper_data.state_space}")
-    print(f"Action space: {piper_data.action_space}")
-
-    episode_states, episode_actions = _load_needed_episode_arrays(episode_files, selected_episode_ids)
-
-    stats = {key: normalize.RunningStats() for key in ("state", "actions")}
-    for batch_start in tqdm.tqdm(
-        range(0, len(selected_indices), config.batch_size),
-        desc="Processing Piper batches",
-        total=len(selected_indices) // config.batch_size,
-    ):
-        batch_indices = selected_indices[batch_start : batch_start + config.batch_size]
-        batch_states, batch_actions = _build_batch_arrays(
-            batch_indices,
-            episode_offsets,
-            episode_states,
-            episode_actions,
-            config.model.action_horizon,
-        )
-        batch_inputs = slai_piper_policy.extract_state_action_inputs(
-            batch_states,
-            batch_actions,
-            state_space=piper_data.state_space,
-            action_space=piper_data.action_space,
-        )
-        # Make reductions deterministic relative to the slow reference path, which stacks
-        # into contiguous arrays before updating RunningStats.
-        stats["state"].update(np.ascontiguousarray(batch_inputs["state"]))
-        stats["actions"].update(np.ascontiguousarray(batch_inputs["actions"]))
-
-    norm_stats = {key: value.get_statistics() for key, value in stats.items()}
-
-    if save:
-        output_path = config.assets_dirs / piper_data.repo_id
-        output_path.mkdir(parents=True, exist_ok=True)
-        print(f"\nWriting stats to: {output_path}")
-        normalize.save(output_path, norm_stats)
-
-    if compare_with_reference:
-        reference = _compute_reference_stats_with_slaipiperinputs(
-            config,
-            piper_data,
-            episode_offsets,
-            episode_states,
-            episode_actions,
-            selected_indices,
-        )
-        _summarize_diff(norm_stats, reference, atol=compare_atol, rtol=compare_rtol)
-        print("\nComparison against slow SLAIPiperInputs reference passed.")
+        if compare_with_reference:
+            if reference_context is None:
+                raise ValueError("compare_with_reference is only supported for per-dataset/single-dataset groups.")
+            episode_offsets, episode_states, episode_actions, selected_indices = reference_context
+            reference = _compute_reference_stats_with_slaipiperinputs(
+                config,
+                piper_datas[0],
+                episode_offsets,
+                episode_states,
+                episode_actions,
+                selected_indices,
+            )
+            _summarize_diff(norm_stats, reference, atol=compare_atol, rtol=compare_rtol)
+            print("\nComparison against slow SLAIPiperInputs reference passed.")
 
     if compare_with_original:
         if base_dir is not None:
@@ -383,6 +524,8 @@ def main(
                 "compare_with_original requires base_dir=None so the reference path matches the process-level "
                 "HF_LEROBOT_HOME used by compute_norm_stats.py."
             )
+        if len(piper_data_groups) != 1 or len(piper_data_groups[0]) != 1:
+            raise ValueError("compare_with_original is only supported for a single Piper dataset.")
         reference = _compute_reference_stats(config, max_frames)
         _summarize_diff(norm_stats, reference, atol=compare_atol, rtol=compare_rtol)
         print("\nComparison against compute_norm_stats.py passed.")
