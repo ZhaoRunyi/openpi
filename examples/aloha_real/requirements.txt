@@ -78,7 +78,6 @@ numpy==1.24.4
     #   opencv-python
     #   pyquaternion
     #   scipy
-opencv-python==4.11.0.86
     # via -r examples/aloha_real/requirements.in
 packaging==24.2
     # via
