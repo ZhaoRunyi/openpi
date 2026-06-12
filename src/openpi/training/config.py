@@ -1595,6 +1595,34 @@ _CONFIGS = [
         batch_size=32,
         fsdp_devices=2,
     ),
+    # ================= TRAFFIC_LIGHT_WATER ================= #
+    # ================= TRAFFIC_LIGHT_WATER ================= #
+    # ================= TRAFFIC_LIGHT_WATER ================= #
+    TrainConfig(
+        name="pi05_slai_piper_traffic_light_water_H30_Ajointgripper_Sjointgripper_0609",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=slai_piper_policy.get_space_dim(slai_piper_policy.ActionSpaceConfig()),
+            action_horizon=30,
+        ),
+        data=LeRobotSLAIPiperDataConfig(
+            action_space=slai_piper_policy.ActionSpaceConfig(ids="joint_gripper"),
+            state_space=slai_piper_policy.StateSpaceConfig(ids="joint_gripper"),
+            repo_id="ZhaoRunyi/Piper_traffic_light_water_0609", # HF_LEROBOT_HOME=/workspace/data
+            assets=AssetsConfig(assets_dir="/workspace/openpi_piper/assets", asset_id="pi05_slai_piper_traffic_light_water_H30_Ajointgripper_Sjointgripper_0609/ZhaoRunyi/Piper_traffic_light_water_0609"),
+            base_config=DataConfig(prompt_from_task=True),
+        ),
+        save_interval=10000,
+        num_train_steps=50000,
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=4000,
+            decay_steps=50000,
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/workspace/ckpts/pi05_base/params"),
+        batch_size=128,
+        fsdp_devices=4,
+        num_workers=16
+    ),
     
     #
     # ALOHA Sim configs. This config is used to demonstrate how to train on a simple simulated environment.
