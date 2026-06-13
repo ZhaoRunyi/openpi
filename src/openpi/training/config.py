@@ -1599,7 +1599,7 @@ _CONFIGS = [
     # ================= TRAFFIC_LIGHT_WATER ================= #
     # ================= TRAFFIC_LIGHT_WATER ================= #
     TrainConfig(
-        name="pi05_slai_piper_traffic_light_water_H30_Ajointgripper_Sjointgripper_0609",
+        name="pi05_slai_piper_traffic_light_water_H30_Ajointgripper_Sjointgripper_0612",
         model=pi0_config.Pi0Config(
             pi05=True,
             action_dim=slai_piper_policy.get_space_dim(slai_piper_policy.ActionSpaceConfig()),
@@ -1608,8 +1608,8 @@ _CONFIGS = [
         data=LeRobotSLAIPiperDataConfig(
             action_space=slai_piper_policy.ActionSpaceConfig(ids="joint_gripper"),
             state_space=slai_piper_policy.StateSpaceConfig(ids="joint_gripper"),
-            repo_id="ZhaoRunyi/Piper_traffic_light_water_0609", # HF_LEROBOT_HOME=/workspace/data
-            assets=AssetsConfig(assets_dir="/workspace/openpi_piper/assets", asset_id="pi05_slai_piper_traffic_light_water_H30_Ajointgripper_Sjointgripper_0609/ZhaoRunyi/Piper_traffic_light_water_0609"),
+            repo_id="ZhaoRunyi/Piper_traffic_light_water_0612", # HF_LEROBOT_HOME=/workspace/data
+            assets=AssetsConfig(assets_dir="/workspace/openpi_piper/assets", asset_id="pi05_slai_piper_traffic_light_water_H30_Ajointgripper_Sjointgripper_0612/ZhaoRunyi/Piper_traffic_light_water_0612"),
             base_config=DataConfig(prompt_from_task=True),
         ),
         save_interval=10000,
