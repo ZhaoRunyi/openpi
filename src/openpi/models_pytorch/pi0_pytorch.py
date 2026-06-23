@@ -86,6 +86,7 @@ class PI0Pytorch(nn.Module):
         super().__init__()
         self.config = config
         self.pi05 = config.pi05
+        self.fast_action_aux_loss_coef = config.fast_action_aux_loss_coef
 
         paligemma_config = _gemma.get_config(config.paligemma_variant)
         action_expert_config = _gemma.get_config(config.action_expert_variant)
@@ -313,9 +314,44 @@ class PI0Pytorch(nn.Module):
 
         return embs, pad_masks, att_masks, adarms_cond
 
+    def compute_fast_action_ce_loss(self, prefix_embs, prefix_pad_masks, token_ar_mask, lang_tokens, token_loss_mask):
+        if self.fast_action_aux_loss_coef is None or token_loss_mask is None:
+            return torch.zeros(prefix_embs.shape[0], dtype=torch.float32, device=prefix_embs.device)
+        if token_ar_mask is None:
+            token_ar_mask = torch.zeros_like(lang_tokens)
+        image_token_count = prefix_embs.shape[1] - lang_tokens.shape[1]
+        image_ar_mask = torch.zeros(
+            prefix_embs.shape[0], image_token_count, dtype=token_ar_mask.dtype, device=prefix_embs.device
+        )
+        fast_att_masks = torch.cat([image_ar_mask, token_ar_mask.to(prefix_embs.device)], dim=1)
+        att_2d_masks = make_att_2d_masks(prefix_pad_masks[:, :-1], fast_att_masks[:, :-1])
+        position_ids = torch.cumsum(prefix_pad_masks, dim=1)[:, :-1] - 1
+        (prefix_out, _), _ = self.paligemma_with_expert.forward(
+            attention_mask=self._prepare_attention_masks_4d(att_2d_masks),
+            position_ids=position_ids,
+            past_key_values=None,
+            inputs_embeds=[prefix_embs[:, :-1], None],
+            use_cache=False,
+        )
+        target_tokens = lang_tokens[:, 1:].long()
+        logits = self.paligemma_with_expert.paligemma.lm_head(prefix_out[:, -target_tokens.shape[1] :])
+        ce_loss = F.cross_entropy(
+            logits.float().reshape(-1, logits.shape[-1]),
+            target_tokens.reshape(-1),
+            reduction="none",
+        )
+        ce_loss = ce_loss.reshape_as(target_tokens)
+        loss_mask = token_loss_mask[:, 1:].to(dtype=ce_loss.dtype, device=ce_loss.device)
+        return (ce_loss * loss_mask).sum(dim=-1) / loss_mask.sum(dim=-1).clamp(min=1)
+
     def forward(self, observation, actions, noise=None, time=None) -> Tensor:
         """Do a full training forward pass and compute the loss (batch_size x num_steps x num_motors)"""
-        images, img_masks, lang_tokens, lang_masks, state = self._preprocess_observation(observation, train=True)
+        observation = _preprocessing.preprocess_observation_pytorch(observation, train=True)
+        images = list(observation.images.values())
+        img_masks = list(observation.image_masks.values())
+        lang_tokens = observation.tokenized_prompt
+        lang_masks = observation.tokenized_prompt_mask
+        state = observation.state
 
         if noise is None:
             noise = self.sample_noise(actions.shape, actions.device)
@@ -328,6 +364,13 @@ class PI0Pytorch(nn.Module):
         u_t = noise - actions
 
         prefix_embs, prefix_pad_masks, prefix_att_masks = self.embed_prefix(images, img_masks, lang_tokens, lang_masks)
+        continuous_prefix_pad_masks = prefix_pad_masks
+        if self.fast_action_aux_loss_coef is not None and observation.token_loss_mask is not None:
+            image_token_count = prefix_pad_masks.shape[1] - lang_masks.shape[1]
+            continuous_lang_masks = lang_masks & ~observation.token_loss_mask
+            continuous_prefix_pad_masks = torch.cat(
+                [prefix_pad_masks[:, :image_token_count], continuous_lang_masks], dim=1
+            )
         suffix_embs, suffix_pad_masks, suffix_att_masks, adarms_cond = self.embed_suffix(state, x_t, time)
         if (
             self.paligemma_with_expert.paligemma.language_model.layers[0].self_attn.q_proj.weight.dtype
@@ -336,7 +379,7 @@ class PI0Pytorch(nn.Module):
             suffix_embs = suffix_embs.to(dtype=torch.bfloat16)
             prefix_embs = prefix_embs.to(dtype=torch.bfloat16)
 
-        pad_masks = torch.cat([prefix_pad_masks, suffix_pad_masks], dim=1)
+        pad_masks = torch.cat([continuous_prefix_pad_masks, suffix_pad_masks], dim=1)
         att_masks = torch.cat([prefix_att_masks, suffix_att_masks], dim=1)
 
         att_2d_masks = make_att_2d_masks(pad_masks, att_masks)
@@ -370,7 +413,18 @@ class PI0Pytorch(nn.Module):
 
         v_t = self._apply_checkpoint(action_out_proj_func, suffix_out)
 
-        return F.mse_loss(u_t, v_t, reduction="none")
+        continuous_loss = F.mse_loss(u_t, v_t, reduction="none")
+        if self.fast_action_aux_loss_coef is None:
+            return continuous_loss
+        fast_ce_loss = self.compute_fast_action_ce_loss(
+            prefix_embs, prefix_pad_masks, observation.token_ar_mask, lang_tokens, observation.token_loss_mask
+        )
+        total_loss = continuous_loss + self.fast_action_aux_loss_coef * fast_ce_loss[:, None, None]
+        metrics = {
+            "continuous_loss": continuous_loss.mean().detach(),
+            "fast_action_ce_loss": fast_ce_loss.mean().detach(),
+        }
+        return total_loss, metrics
 
     @torch.no_grad()
     def sample_actions(self, device, observation, noise=None, num_steps=10) -> Tensor:

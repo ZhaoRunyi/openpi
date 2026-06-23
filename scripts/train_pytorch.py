@@ -529,7 +529,12 @@ def train_loop(config: _config.TrainConfig):
                 pg["lr"] = lr_schedule(global_step)
 
             # Forward pass
-            losses = model(observation, actions)
+            loss_result = model(observation, actions)
+            loss_metrics = {}
+            if isinstance(loss_result, tuple) and len(loss_result) == 2 and isinstance(loss_result[1], dict):
+                losses, loss_metrics = loss_result
+            else:
+                losses = loss_result
             # Ensure losses is a tensor and handle different return types
             if isinstance(losses, list | tuple):
                 losses = torch.stack(losses)
@@ -560,13 +565,18 @@ def train_loop(config: _config.TrainConfig):
 
             # Collect stats
             if is_main:
-                infos.append(
+                info = {
+                    "loss": loss.item(),
+                    "learning_rate": optim.param_groups[0]["lr"],
+                    "grad_norm": float(grad_norm) if isinstance(grad_norm, torch.Tensor) else grad_norm,
+                }
+                info.update(
                     {
-                        "loss": loss.item(),
-                        "learning_rate": optim.param_groups[0]["lr"],
-                        "grad_norm": float(grad_norm) if isinstance(grad_norm, torch.Tensor) else grad_norm,
+                        key: value.item() if isinstance(value, torch.Tensor) else float(value)
+                        for key, value in loss_metrics.items()
                     }
                 )
+                infos.append(info)
 
             if is_main and (global_step % config.log_interval == 0):
                 elapsed = time.time() - start_time
@@ -574,6 +584,13 @@ def train_loop(config: _config.TrainConfig):
                 # Average stats over log interval
                 avg_loss = sum(info["loss"] for info in infos) / len(infos)
                 avg_lr = sum(info["learning_rate"] for info in infos) / len(infos)
+                metric_keys = sorted(
+                    set().union(*(info.keys() for info in infos)) - {"loss", "learning_rate", "grad_norm"}
+                )
+                avg_metrics = {
+                    key: sum(info[key] for info in infos if key in info) / sum(key in info for info in infos)
+                    for key in metric_keys
+                }
 
                 avg_grad_norm = None
                 if any("grad_norm" in info for info in infos):
@@ -598,6 +615,7 @@ def train_loop(config: _config.TrainConfig):
                     }
                     if avg_grad_norm is not None:
                         log_payload["grad_norm"] = avg_grad_norm
+                    log_payload.update(avg_metrics)
                     wandb.log(log_payload, step=global_step)
 
                 start_time = time.time()

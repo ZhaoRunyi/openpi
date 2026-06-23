@@ -248,6 +248,7 @@ class AbsoluteActions(DataTransformFn):
 class TokenizePrompt(DataTransformFn):
     tokenizer: _tokenizer.PaligemmaTokenizer
     discrete_state_input: bool = False
+    fast_tokenizer: _tokenizer.FASTTokenizer | None = None
 
     def __call__(self, data: DataDict) -> DataDict:
         if (prompt := data.pop("prompt", None)) is None:
@@ -263,7 +264,19 @@ class TokenizePrompt(DataTransformFn):
             prompt = prompt.item()
 
         tokens, token_masks = self.tokenizer.tokenize(prompt, state)
-        return {**data, "tokenized_prompt": tokens, "tokenized_prompt_mask": token_masks}
+        if self.fast_tokenizer is None:
+            return {**data, "tokenized_prompt": tokens, "tokenized_prompt_mask": token_masks}
+
+        tokens, token_masks, ar_mask, loss_mask = self.fast_tokenizer.append_action_tokens(
+            tokens, token_masks, data.get("actions")
+        )
+        return {
+            **data,
+            "tokenized_prompt": tokens,
+            "tokenized_prompt_mask": token_masks,
+            "token_ar_mask": ar_mask,
+            "token_loss_mask": loss_mask,
+        }
 
 
 @dataclasses.dataclass(frozen=True)

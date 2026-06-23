@@ -10,6 +10,8 @@ from transformers import AutoProcessor
 import openpi.models.utils.fsq_tokenizer as fsq_tokenizer
 import openpi.shared.download as download
 
+PALIGEMMA_EOS_TOKEN = 1
+
 
 class PaligemmaTokenizer:
     def __init__(self, max_len: int = 48):
@@ -74,31 +76,36 @@ class FASTTokenizer:
         prefix = f"Task: {cleaned_text}, State: {state_str};\n"
         prefix_tokens = self._paligemma_tokenizer.encode(prefix, add_bos=True)
 
+        postfix_tokens = []
         if actions is not None:
-            # Tokenize actions with FAST tokenizer --> map to last tokens in PaliGemma vocab
-            action_tokens = self._fast_tokenizer(actions[None])[0]
-            action_tokens_in_pg = self._act_tokens_to_paligemma_tokens(action_tokens)
-
             # Convention: postfix contains 'Action:' followed by FAST tokens, followed by '|'
             postfix_tokens = (
                 self._paligemma_tokenizer.encode("Action: ")
-                + action_tokens_in_pg.tolist()
+                + self._encode_action_tokens(actions).tolist()
                 + self._paligemma_tokenizer.encode("|", add_eos=True)
             )
-        else:
-            postfix_tokens = []
 
-        # Create output token sequence & masks
-        # AR mask is 0 on prefix (bidirectional attention) and 1 on postfix (causal attention to all previous tokens)
+        return self._make_token_fields(prefix_tokens, postfix_tokens)
+
+    def append_action_tokens(
+        self, tokens: np.ndarray, token_mask: np.ndarray, actions: np.ndarray | None
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        valid_len = int(np.sum(token_mask))
+        prefix_tokens = tokens[:valid_len].tolist()
+        postfix_tokens: list[int] = []
+        if actions is not None:
+            postfix_tokens = [*self._encode_action_tokens(actions).tolist(), PALIGEMMA_EOS_TOKEN]
+        return self._make_token_fields(prefix_tokens, postfix_tokens)
+
+    def _make_token_fields(
+        self, prefix_tokens: list[int], postfix_tokens: list[int]
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         tokens = prefix_tokens + postfix_tokens
         token_mask = [True] * len(tokens)
         ar_mask = [0] * len(prefix_tokens) + [1] * len(postfix_tokens)
-        loss_mask = [False] * len(prefix_tokens) + [True] * len(postfix_tokens)  # Loss on postfix only
-
-        # Pad tokens to max length
-        tokens_len = len(tokens)
-        if tokens_len < self._max_len:
-            padding = [False] * (self._max_len - tokens_len)
+        loss_mask = [False] * len(prefix_tokens) + [True] * len(postfix_tokens)
+        if len(tokens) < self._max_len:
+            padding = [False] * (self._max_len - len(tokens))
             tokens = tokens + padding
             token_mask = token_mask + padding
             ar_mask = ar_mask + padding
@@ -113,7 +120,6 @@ class FASTTokenizer:
             token_mask = token_mask[: self._max_len]
             ar_mask = ar_mask[: self._max_len]
             loss_mask = loss_mask[: self._max_len]
-
         return np.asarray(tokens), np.asarray(token_mask), np.asarray(ar_mask), np.asarray(loss_mask)
 
     def extract_actions(self, tokens: np.ndarray, action_horizon: int, action_dim: int) -> np.ndarray:
@@ -137,6 +143,9 @@ class FASTTokenizer:
         if isinstance(tokens, list):
             tokens = np.array(tokens)
         return self._paligemma_tokenizer.vocab_size() - 1 - self._fast_skip_tokens - tokens
+
+    def _encode_action_tokens(self, actions: np.ndarray) -> np.ndarray:
+        return self._act_tokens_to_paligemma_tokens(self._fast_tokenizer(actions[None])[0])
 
 
 ###########################################################################

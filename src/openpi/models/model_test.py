@@ -1,5 +1,8 @@
+import dataclasses
+
 from flax import nnx
 import jax
+import jax.numpy as jnp
 import pytest
 
 from openpi.models import model as _model
@@ -37,6 +40,37 @@ def test_pi0_lora_model():
 
     actions = nnx_utils.module_jit(model.sample_actions)(key, obs, num_steps=10)
     assert actions.shape == (batch_size, model.action_horizon, model.action_dim)
+
+
+@pytest.mark.parametrize("pi05", [False, True])
+def test_pi0_fast_action_aux_loss(pi05):
+    key = jax.random.key(0)
+    config = pi0_config.Pi0Config(
+        paligemma_variant="dummy",
+        action_expert_variant="dummy",
+        action_dim=8,
+        action_horizon=4,
+        max_token_len=16,
+        pi05=pi05,
+        fast_action_aux_loss_coef=0.25,
+    )
+    model = config.create(key)
+
+    batch_size = 1
+    obs, act = config.fake_obs(batch_size), config.fake_act(batch_size)
+    token_loss_mask = jnp.zeros((batch_size, config.max_token_len), dtype=jnp.bool_)
+    token_loss_mask = token_loss_mask.at[:, -3:].set(True)
+    token_ar_mask = jnp.zeros((batch_size, config.max_token_len), dtype=jnp.int32)
+    token_ar_mask = token_ar_mask.at[:, -3:].set(1)
+    obs = dataclasses.replace(obs, token_ar_mask=token_ar_mask, token_loss_mask=token_loss_mask)
+
+    loss, metrics = nnx_utils.module_jit(model.compute_loss_with_metrics)(key, obs, act)
+
+    assert loss.shape == (batch_size, config.action_horizon)
+    assert set(metrics) == {"continuous_loss", "fast_action_ce_loss"}
+    assert bool(jnp.all(jnp.isfinite(loss)))
+    assert bool(jnp.isfinite(metrics["continuous_loss"]))
+    assert bool(jnp.isfinite(metrics["fast_action_ce_loss"]))
 
 
 def test_pi0_fast_model():

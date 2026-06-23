@@ -78,6 +78,25 @@ def test_tokenize_prompt():
     assert np.allclose(tok_mask, data["tokenized_prompt_mask"])
 
 
+def test_tokenize_prompt_with_fast_action_aux():
+    class FakeFastTokenizer:
+        def append_action_tokens(self, tokens, token_mask, actions):
+            assert actions is not None
+            ar_mask = np.zeros_like(tokens)
+            loss_mask = np.zeros_like(token_mask)
+            loss_mask[3] = True
+            return tokens, token_mask, ar_mask, loss_mask
+
+    tokenizer = _tokenizer.PaligemmaTokenizer(max_len=12)
+    transform = _transforms.TokenizePrompt(tokenizer, fast_tokenizer=FakeFastTokenizer())
+
+    data = transform({"prompt": "Hello, world!", "actions": np.zeros((2, 3), dtype=np.float32)})
+
+    assert "token_ar_mask" in data
+    assert "token_loss_mask" in data
+    assert data["token_loss_mask"][3]
+
+
 def test_tokenize_no_prompt():
     transform = _transforms.TokenizePrompt(_tokenizer.PaligemmaTokenizer())
 

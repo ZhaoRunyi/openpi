@@ -112,6 +112,9 @@ class ModelTransformFactory(GroupFactory):
     default_prompt: str | None = None
 
     def __call__(self, model_config: _model.BaseModelConfig) -> _transforms.Group:
+        fast_tokenizer = None
+        if isinstance(model_config, pi0_config.Pi0Config) and model_config.fast_action_aux_loss_coef is not None:
+            fast_tokenizer = _tokenizer.FASTTokenizer(model_config.max_token_len)
         match model_config.model_type:
             case _model.ModelType.PI0:
                 return _transforms.Group(
@@ -120,6 +123,7 @@ class ModelTransformFactory(GroupFactory):
                         _transforms.ResizeImages(224, 224),
                         _transforms.TokenizePrompt(
                             _tokenizer.PaligemmaTokenizer(model_config.max_token_len),
+                            fast_tokenizer=fast_tokenizer,
                         ),
                         _transforms.PadStatesAndActions(model_config.action_dim),
                     ],
@@ -133,6 +137,7 @@ class ModelTransformFactory(GroupFactory):
                         _transforms.TokenizePrompt(
                             _tokenizer.PaligemmaTokenizer(model_config.max_token_len),
                             discrete_state_input=model_config.discrete_state_input,
+                            fast_tokenizer=fast_tokenizer,
                         ),
                         _transforms.PadStatesAndActions(model_config.action_dim),
                     ],

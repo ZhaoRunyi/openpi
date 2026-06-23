@@ -31,6 +31,7 @@ class Pi0Config(_model.BaseModelConfig):
     pi05: bool = False
     # This config option is not used directly by the model, but it is read by the ModelTransformFactory.
     discrete_state_input: bool = None  # type: ignore
+    fast_action_aux_loss_coef: float | None = None
 
     def __post_init__(self):
         if self.max_token_len is None:
@@ -57,6 +58,10 @@ class Pi0Config(_model.BaseModelConfig):
         image_mask_spec = jax.ShapeDtypeStruct([batch_size], jnp.bool_)
 
         with at.disable_typechecking():
+            token_ar_mask = token_loss_mask = None
+            if self.fast_action_aux_loss_coef is not None:
+                token_ar_mask = jax.ShapeDtypeStruct([batch_size, self.max_token_len], jnp.int32)
+                token_loss_mask = jax.ShapeDtypeStruct([batch_size, self.max_token_len], jnp.bool_)
             observation_spec = _model.Observation(
                 images={
                     "base_0_rgb": image_spec,
@@ -71,6 +76,8 @@ class Pi0Config(_model.BaseModelConfig):
                 state=jax.ShapeDtypeStruct([batch_size, self.action_dim], jnp.float32),
                 tokenized_prompt=jax.ShapeDtypeStruct([batch_size, self.max_token_len], jnp.int32),
                 tokenized_prompt_mask=jax.ShapeDtypeStruct([batch_size, self.max_token_len], bool),
+                token_ar_mask=token_ar_mask,
+                token_loss_mask=token_loss_mask,
             )
         action_spec = jax.ShapeDtypeStruct([batch_size, self.action_horizon, self.action_dim], jnp.float32)
 

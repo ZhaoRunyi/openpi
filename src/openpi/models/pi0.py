@@ -1,3 +1,4 @@
+import dataclasses
 import logging
 
 import einops
@@ -67,6 +68,7 @@ class Pi0(_model.BaseModel):
     def __init__(self, config: pi0_config.Pi0Config, rngs: nnx.Rngs):
         super().__init__(config.action_dim, config.action_horizon, config.max_token_len)
         self.pi05 = config.pi05
+        self.fast_action_aux_loss_coef = config.fast_action_aux_loss_coef
         paligemma_config = _gemma.get_config(config.paligemma_variant)
         action_expert_config = _gemma.get_config(config.action_expert_variant)
         # TODO: rewrite gemma in NNX. For now, use bridge.
@@ -104,8 +106,12 @@ class Pi0(_model.BaseModel):
 
     @at.typecheck
     def embed_prefix(
-        self, obs: _model.Observation
-    ) -> tuple[at.Float[at.Array, "b s emb"], at.Bool[at.Array, "b s"], at.Bool[at.Array, " s"]]:
+        self, obs: _model.Observation, token_ar_mask: at.Int[at.Array, "b l"] | None = None
+    ) -> tuple[
+        at.Float[at.Array, "b s emb"],
+        at.Bool[at.Array, "b s"],
+        at.Bool[at.Array, " s"] | at.Int[at.Array, "b s"],
+    ]:
         input_mask = []
         ar_mask = []
         tokens = []
@@ -122,7 +128,10 @@ class Pi0(_model.BaseModel):
                 )
             )
             # image tokens attend to each other
-            ar_mask += [False] * image_tokens.shape[1]
+            if token_ar_mask is None:
+                ar_mask += [False] * image_tokens.shape[1]
+            else:
+                ar_mask.append(jnp.zeros(input_mask[-1].shape, dtype=token_ar_mask.dtype))
 
         # add language (aka tokenized inputs)
         if obs.tokenized_prompt is not None:
@@ -130,10 +139,13 @@ class Pi0(_model.BaseModel):
             tokens.append(tokenized_inputs)
             input_mask.append(obs.tokenized_prompt_mask)
             # full attention between image and language inputs
-            ar_mask += [False] * tokenized_inputs.shape[1]
+            if token_ar_mask is None:
+                ar_mask += [False] * tokenized_inputs.shape[1]
+            else:
+                ar_mask.append(token_ar_mask)
         tokens = jnp.concatenate(tokens, axis=1)
         input_mask = jnp.concatenate(input_mask, axis=1)
-        ar_mask = jnp.array(ar_mask)
+        ar_mask = jnp.array(ar_mask) if token_ar_mask is None else jnp.concatenate(ar_mask, axis=1)
         return tokens, input_mask, ar_mask
 
     @at.typecheck
@@ -189,8 +201,20 @@ class Pi0(_model.BaseModel):
     def compute_loss(
         self, rng: at.KeyArrayLike, observation: _model.Observation, actions: _model.Actions, *, train: bool = False
     ) -> at.Float[at.Array, "*b ah"]:
+        losses, _ = self.compute_loss_with_metrics(rng, observation, actions, train=train)
+        return losses
+
+    def compute_loss_with_metrics(
+        self, rng: at.KeyArrayLike, observation: _model.Observation, actions: _model.Actions, *, train: bool = False
+    ) -> tuple[at.Float[at.Array, "*b ah"], dict[str, at.Array]]:
         preprocess_rng, noise_rng, time_rng = jax.random.split(rng, 3)
         observation = _model.preprocess_observation(preprocess_rng, observation, train=train)
+        continuous_observation = observation
+        if self.fast_action_aux_loss_coef is not None and observation.token_loss_mask is not None:
+            continuous_observation = dataclasses.replace(
+                observation,
+                tokenized_prompt_mask=jnp.logical_and(observation.tokenized_prompt_mask, ~observation.token_loss_mask),
+            )
 
         batch_shape = actions.shape[:-2]
         noise = jax.random.normal(noise_rng, actions.shape)
@@ -200,8 +224,8 @@ class Pi0(_model.BaseModel):
         u_t = noise - actions
 
         # one big forward pass of prefix + suffix at once
-        prefix_tokens, prefix_mask, prefix_ar_mask = self.embed_prefix(observation)
-        suffix_tokens, suffix_mask, suffix_ar_mask, adarms_cond = self.embed_suffix(observation, x_t, time)
+        prefix_tokens, prefix_mask, prefix_ar_mask = self.embed_prefix(continuous_observation)
+        suffix_tokens, suffix_mask, suffix_ar_mask, adarms_cond = self.embed_suffix(continuous_observation, x_t, time)
         input_mask = jnp.concatenate([prefix_mask, suffix_mask], axis=1)
         ar_mask = jnp.concatenate([prefix_ar_mask, suffix_ar_mask], axis=0)
         attn_mask = make_attn_mask(input_mask, ar_mask)
@@ -211,7 +235,35 @@ class Pi0(_model.BaseModel):
         )
         v_t = self.action_out_proj(suffix_out[:, -self.action_horizon :])
 
-        return jnp.mean(jnp.square(v_t - u_t), axis=-1)
+        continuous_loss = jnp.mean(jnp.square(v_t - u_t), axis=-1)
+        if self.fast_action_aux_loss_coef is None:
+            return continuous_loss, {}
+        fast_ce_loss = self.compute_fast_action_ce_loss(observation)
+        total_loss = continuous_loss + self.fast_action_aux_loss_coef * fast_ce_loss[:, None]
+        metrics = {
+            "continuous_loss": jnp.mean(continuous_loss),
+            "fast_action_ce_loss": jnp.mean(fast_ce_loss),
+        }
+        return total_loss, metrics
+
+    def compute_fast_action_ce_loss(self, observation: _model.Observation) -> at.Float[at.Array, " b"]:
+        if self.fast_action_aux_loss_coef is None or observation.token_loss_mask is None:
+            return jnp.zeros(observation.state.shape[0], dtype=jnp.float32)
+        token_ar_mask = jnp.zeros_like(observation.tokenized_prompt) if observation.token_ar_mask is None else observation.token_ar_mask
+        tokens, input_mask, ar_mask = self.embed_prefix(observation, token_ar_mask)
+        attn_mask = make_attn_mask(input_mask, ar_mask)
+        positions = jnp.cumsum(input_mask, axis=1) - 1
+        (prefix_out, _), _ = self.PaliGemma.llm(
+            [tokens[:, :-1], None],
+            mask=attn_mask[:, :-1, :-1],
+            positions=positions[:, :-1],
+        )
+        target_tokens = observation.tokenized_prompt[:, 1:]
+        logits = self.PaliGemma.llm(prefix_out[:, -target_tokens.shape[1] :], method="decode")
+        logp = jax.nn.log_softmax(logits.astype(jnp.float32), axis=-1)
+        token_logp = jnp.take_along_axis(logp, target_tokens[..., None], axis=-1).squeeze(-1)
+        loss_mask = observation.token_loss_mask[:, 1:]
+        return -jnp.sum(token_logp * loss_mask, axis=-1) / jnp.clip(jnp.sum(loss_mask, axis=-1), 1)
 
     @override
     def sample_actions(

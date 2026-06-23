@@ -12,12 +12,11 @@ from typing_extensions import override
 from openpi.models import model as _model
 import openpi.models.gemma_fast as _gemma
 import openpi.models.siglip as _siglip
+from openpi.models.tokenizer import PALIGEMMA_EOS_TOKEN
 from openpi.shared import array_typing as at
 import openpi.shared.nnx_utils as nnx_utils
 
 logger = logging.getLogger("openpi")
-
-PALIGEMMA_EOS_TOKEN = 1
 
 
 def make_attn_mask(input_mask, mask_ar):
