@@ -51,8 +51,14 @@ class PaligemmaTokenizer:
 
 
 class FASTTokenizer:
-    def __init__(self, max_len: int = 256, fast_tokenizer_path: str = "physical-intelligence/fast"):
+    def __init__(
+        self,
+        max_len: int = 256,
+        fast_tokenizer_path: str = "physical-intelligence/fast",
+        max_action_tokens: int | None = None,
+    ):
         self._max_len = max_len
+        self._max_action_tokens = max_action_tokens
 
         # Download base PaliGemma tokenizer
         path = download.maybe_download("gs://big_vision/paligemma_tokenizer.model", gs={"token": "anon"})
@@ -95,6 +101,17 @@ class FASTTokenizer:
         postfix_tokens: list[int] = []
         if actions is not None:
             postfix_tokens = [*self._encode_action_tokens(actions).tolist(), PALIGEMMA_EOS_TOKEN]
+            if self._max_action_tokens is not None and len(postfix_tokens) > self._max_action_tokens:
+                raise ValueError(
+                    f"FAST action target length ({len(postfix_tokens)}) exceeds "
+                    f"fast_aux_max_token_len ({self._max_action_tokens}). "
+                    "Increase fast_aux_max_token_len for this dataset."
+                )
+            if len(prefix_tokens) + len(postfix_tokens) > self._max_len:
+                raise ValueError(
+                    f"Hybrid FAST aux token length ({len(prefix_tokens) + len(postfix_tokens)}) exceeds "
+                    f"max_token_len ({self._max_len}). Increase max_token_len before training."
+                )
         return self._make_token_fields(prefix_tokens, postfix_tokens)
 
     def _make_token_fields(

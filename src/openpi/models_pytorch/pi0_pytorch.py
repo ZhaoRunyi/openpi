@@ -86,7 +86,8 @@ class PI0Pytorch(nn.Module):
         super().__init__()
         self.config = config
         self.pi05 = config.pi05
-        self.fast_action_aux_loss_coef = config.fast_action_aux_loss_coef
+        self.fast_aux_loss_coef = config.fast_aux_loss_coef
+        self.fast_aux_max_token_len = config.fast_aux_max_token_len
 
         paligemma_config = _gemma.get_config(config.paligemma_variant)
         action_expert_config = _gemma.get_config(config.action_expert_variant)
@@ -314,36 +315,6 @@ class PI0Pytorch(nn.Module):
 
         return embs, pad_masks, att_masks, adarms_cond
 
-    def compute_fast_action_ce_loss(self, prefix_embs, prefix_pad_masks, token_ar_mask, lang_tokens, token_loss_mask):
-        if self.fast_action_aux_loss_coef is None or token_loss_mask is None:
-            return torch.zeros(prefix_embs.shape[0], dtype=torch.float32, device=prefix_embs.device)
-        if token_ar_mask is None:
-            token_ar_mask = torch.zeros_like(lang_tokens)
-        image_token_count = prefix_embs.shape[1] - lang_tokens.shape[1]
-        image_ar_mask = torch.zeros(
-            prefix_embs.shape[0], image_token_count, dtype=token_ar_mask.dtype, device=prefix_embs.device
-        )
-        fast_att_masks = torch.cat([image_ar_mask, token_ar_mask.to(prefix_embs.device)], dim=1)
-        att_2d_masks = make_att_2d_masks(prefix_pad_masks[:, :-1], fast_att_masks[:, :-1])
-        position_ids = torch.cumsum(prefix_pad_masks, dim=1)[:, :-1] - 1
-        (prefix_out, _), _ = self.paligemma_with_expert.forward(
-            attention_mask=self._prepare_attention_masks_4d(att_2d_masks),
-            position_ids=position_ids,
-            past_key_values=None,
-            inputs_embeds=[prefix_embs[:, :-1], None],
-            use_cache=False,
-        )
-        target_tokens = lang_tokens[:, 1:].long()
-        logits = self.paligemma_with_expert.paligemma.lm_head(prefix_out[:, -target_tokens.shape[1] :])
-        ce_loss = F.cross_entropy(
-            logits.float().reshape(-1, logits.shape[-1]),
-            target_tokens.reshape(-1),
-            reduction="none",
-        )
-        ce_loss = ce_loss.reshape_as(target_tokens)
-        loss_mask = token_loss_mask[:, 1:].to(dtype=ce_loss.dtype, device=ce_loss.device)
-        return (ce_loss * loss_mask).sum(dim=-1) / loss_mask.sum(dim=-1).clamp(min=1)
-
     def forward(self, observation, actions, noise=None, time=None) -> Tensor:
         """Do a full training forward pass and compute the loss (batch_size x num_steps x num_motors)"""
         observation = _preprocessing.preprocess_observation_pytorch(observation, train=True)
@@ -363,14 +334,8 @@ class PI0Pytorch(nn.Module):
         x_t = time_expanded * noise + (1 - time_expanded) * actions
         u_t = noise - actions
 
+        has_fast_aux = self.fast_aux_loss_coef is not None and observation.token_loss_mask is not None
         prefix_embs, prefix_pad_masks, prefix_att_masks = self.embed_prefix(images, img_masks, lang_tokens, lang_masks)
-        continuous_prefix_pad_masks = prefix_pad_masks
-        if self.fast_action_aux_loss_coef is not None and observation.token_loss_mask is not None:
-            image_token_count = prefix_pad_masks.shape[1] - lang_masks.shape[1]
-            continuous_lang_masks = lang_masks & ~observation.token_loss_mask
-            continuous_prefix_pad_masks = torch.cat(
-                [prefix_pad_masks[:, :image_token_count], continuous_lang_masks], dim=1
-            )
         suffix_embs, suffix_pad_masks, suffix_att_masks, adarms_cond = self.embed_suffix(state, x_t, time)
         if (
             self.paligemma_with_expert.paligemma.language_model.layers[0].self_attn.q_proj.weight.dtype
@@ -379,18 +344,50 @@ class PI0Pytorch(nn.Module):
             suffix_embs = suffix_embs.to(dtype=torch.bfloat16)
             prefix_embs = prefix_embs.to(dtype=torch.bfloat16)
 
-        pad_masks = torch.cat([continuous_prefix_pad_masks, suffix_pad_masks], dim=1)
+        pad_masks = torch.cat([prefix_pad_masks, suffix_pad_masks], dim=1)
         att_masks = torch.cat([prefix_att_masks, suffix_att_masks], dim=1)
 
+        image_token_count = prefix_pad_masks.shape[1] - lang_masks.shape[1]
+        if has_fast_aux:
+            prefix_att_masks = torch.cat(
+                [prefix_att_masks[:, :image_token_count], observation.token_ar_mask.to(prefix_att_masks.device)],
+                dim=1,
+            )
+            att_masks = torch.cat([prefix_att_masks, suffix_att_masks], dim=1)
         att_2d_masks = make_att_2d_masks(pad_masks, att_masks)
         position_ids = torch.cumsum(pad_masks, dim=1) - 1
+        if has_fast_aux:
+            prefix_fast_mask = torch.cat(
+                [
+                    torch.zeros(
+                        prefix_pad_masks.shape[0],
+                        image_token_count,
+                        dtype=torch.bool,
+                        device=prefix_pad_masks.device,
+                    ),
+                    observation.token_loss_mask.to(device=prefix_pad_masks.device),
+                ],
+                dim=1,
+            )
+            suffix_false_mask = torch.zeros_like(suffix_pad_masks)
+            full_fast_mask = torch.cat([prefix_fast_mask, suffix_false_mask], dim=1)
+            full_action_mask = torch.cat([torch.zeros_like(prefix_fast_mask), suffix_pad_masks], dim=1)
+            att_2d_masks = att_2d_masks & ~(full_fast_mask[:, :, None] & full_action_mask[:, None, :])
+            att_2d_masks = att_2d_masks & ~(full_action_mask[:, :, None] & full_fast_mask[:, None, :])
+            prefix_positions = torch.cumsum(prefix_pad_masks, dim=1) - 1
+            suffix_positions = (
+                torch.sum(prefix_pad_masks & ~prefix_fast_mask, dim=1)[:, None]
+                + torch.cumsum(suffix_pad_masks, dim=1)
+                - 1
+            )
+            position_ids = torch.cat([prefix_positions, suffix_positions], dim=1)
 
         # Prepare attention masks
         att_2d_masks_4d = self._prepare_attention_masks_4d(att_2d_masks)
 
         # Apply gradient checkpointing if enabled
         def forward_func(prefix_embs, suffix_embs, att_2d_masks_4d, position_ids, adarms_cond):
-            (_, suffix_out), _ = self.paligemma_with_expert.forward(
+            (prefix_out, suffix_out), _ = self.paligemma_with_expert.forward(
                 attention_mask=att_2d_masks_4d,
                 position_ids=position_ids,
                 past_key_values=None,
@@ -398,9 +395,9 @@ class PI0Pytorch(nn.Module):
                 use_cache=False,
                 adarms_cond=[None, adarms_cond],
             )
-            return suffix_out
+            return prefix_out, suffix_out
 
-        suffix_out = self._apply_checkpoint(
+        prefix_out, suffix_out = self._apply_checkpoint(
             forward_func, prefix_embs, suffix_embs, att_2d_masks_4d, position_ids, adarms_cond
         )
 
@@ -414,15 +411,32 @@ class PI0Pytorch(nn.Module):
         v_t = self._apply_checkpoint(action_out_proj_func, suffix_out)
 
         continuous_loss = F.mse_loss(u_t, v_t, reduction="none")
-        if self.fast_action_aux_loss_coef is None:
+        if not has_fast_aux:
             return continuous_loss
-        fast_ce_loss = self.compute_fast_action_ce_loss(
-            prefix_embs, prefix_pad_masks, observation.token_ar_mask, lang_tokens, observation.token_loss_mask
+        target_tokens = lang_tokens[:, 1:].to(device=prefix_out.device, dtype=torch.long)
+        loss_mask = observation.token_loss_mask[:, 1:].to(device=prefix_out.device)
+        target_positions = torch.arange(target_tokens.shape[1], device=target_tokens.device)[None, :]
+        target_ranks = torch.cumsum(loss_mask.to(torch.int64), dim=1) - 1
+        sort_key = torch.where(loss_mask, target_ranks, self.fast_aux_max_token_len + target_positions)
+        gather_indices = torch.argsort(sort_key, dim=1)[:, : self.fast_aux_max_token_len]
+        hidden_indices = gather_indices[:, :, None].expand(-1, -1, prefix_out.shape[-1])
+        hidden_states = torch.gather(prefix_out[:, image_token_count:-1], dim=1, index=hidden_indices)
+        target_tokens = torch.gather(target_tokens, dim=1, index=gather_indices)
+        loss_mask = torch.gather(loss_mask, dim=1, index=gather_indices)
+        logits = self.paligemma_with_expert.paligemma.lm_head(hidden_states)
+        ce_loss = F.cross_entropy(
+            logits.float().reshape(-1, logits.shape[-1]),
+            target_tokens.reshape(-1),
+            reduction="none",
         )
-        total_loss = continuous_loss + self.fast_action_aux_loss_coef * fast_ce_loss[:, None, None]
+        ce_loss = ce_loss.reshape_as(target_tokens)
+        loss_mask = loss_mask.to(dtype=ce_loss.dtype, device=ce_loss.device)
+        fast_ce_loss = (ce_loss * loss_mask).sum(dim=-1) / loss_mask.sum(dim=-1).clamp(min=1)
+        total_loss = continuous_loss + self.fast_aux_loss_coef * fast_ce_loss[:, None, None]
         metrics = {
             "continuous_loss": continuous_loss.mean().detach(),
             "fast_action_ce_loss": fast_ce_loss.mean().detach(),
+            "total_loss": total_loss.mean().detach(),
         }
         return total_loss, metrics
 

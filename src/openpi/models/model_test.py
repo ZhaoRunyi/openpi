@@ -52,7 +52,7 @@ def test_pi0_fast_action_aux_loss(pi05):
         action_horizon=4,
         max_token_len=16,
         pi05=pi05,
-        fast_action_aux_loss_coef=0.25,
+        fast_aux_loss_coef=0.1,
     )
     model = config.create(key)
 
@@ -67,10 +67,11 @@ def test_pi0_fast_action_aux_loss(pi05):
     loss, metrics = nnx_utils.module_jit(model.compute_loss_with_metrics)(key, obs, act)
 
     assert loss.shape == (batch_size, config.action_horizon)
-    assert set(metrics) == {"continuous_loss", "fast_action_ce_loss"}
+    assert set(metrics) == {"continuous_loss", "fast_action_ce_loss", "total_loss"}
     assert bool(jnp.all(jnp.isfinite(loss)))
     assert bool(jnp.isfinite(metrics["continuous_loss"]))
     assert bool(jnp.isfinite(metrics["fast_action_ce_loss"]))
+    assert bool(jnp.isfinite(metrics["total_loss"]))
 
 
 def test_pi0_fast_model():

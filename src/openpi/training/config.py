@@ -113,8 +113,10 @@ class ModelTransformFactory(GroupFactory):
 
     def __call__(self, model_config: _model.BaseModelConfig) -> _transforms.Group:
         fast_tokenizer = None
-        if isinstance(model_config, pi0_config.Pi0Config) and model_config.fast_action_aux_loss_coef is not None:
-            fast_tokenizer = _tokenizer.FASTTokenizer(model_config.max_token_len)
+        if isinstance(model_config, pi0_config.Pi0Config) and model_config.fast_aux_loss_coef is not None:
+            fast_tokenizer = _tokenizer.FASTTokenizer(
+                model_config.max_token_len, max_action_tokens=model_config.fast_aux_max_token_len
+            )
         match model_config.model_type:
             case _model.ModelType.PI0:
                 return _transforms.Group(
@@ -1708,7 +1710,7 @@ _CONFIGS = [
             pi05=True,
             action_dim=slai_piper_policy.get_space_dim(slai_piper_policy.ActionSpaceConfig()),
             action_horizon=50,
-            fast_action_aux_loss_coef=0.1,
+            fast_aux_loss_coef=0.1,
             max_token_len=300
         ),
         data=LeRobotSLAIPiperDataConfig(
@@ -1729,7 +1731,7 @@ _CONFIGS = [
         fsdp_devices=4,
         num_workers=16
     ),
-    
+
     #
     # ALOHA Sim configs. This config is used to demonstrate how to train on a simple simulated environment.
     #
