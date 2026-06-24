@@ -1708,7 +1708,8 @@ _CONFIGS = [
             pi05=True,
             action_dim=slai_piper_policy.get_space_dim(slai_piper_policy.ActionSpaceConfig()),
             action_horizon=50,
-            fast_action_aux_loss_coef=0.1
+            fast_action_aux_loss_coef=0.1,
+            max_token_len=300
         ),
         data=LeRobotSLAIPiperDataConfig(
             action_space=slai_piper_policy.ActionSpaceConfig(ids="joint_gripper"),
