@@ -1732,11 +1732,7 @@ _CONFIGS = [
         num_workers=16
     ),
     TrainConfig(
-<<<<<<< HEAD
-        name="pi05_slai_piper_traffic_light_water_H50_Ajointgripper_Sjointgripper_0624",
-=======
         name="pi05_slai_piper_traffic_light_water_color_H50_Ajointgripper_Sjointgripper_0626",
->>>>>>> 1c9fad9 (more configs)
         model=pi0_config.Pi0Config(
             pi05=True,
             action_dim=slai_piper_policy.get_space_dim(slai_piper_policy.ActionSpaceConfig()),
@@ -1745,13 +1741,8 @@ _CONFIGS = [
         data=LeRobotSLAIPiperDataConfig(
             action_space=slai_piper_policy.ActionSpaceConfig(ids="joint_gripper"),
             state_space=slai_piper_policy.StateSpaceConfig(ids="joint_gripper"),
-<<<<<<< HEAD
-            repo_id="ZhaoRunyi/Piper_traffic_light_water_0624", # HF_LEROBOT_HOME=/workspace/data
-            assets=AssetsConfig(assets_dir="/workspace/openpi_piper/assets", asset_id="pi05_slai_piper_traffic_light_water_H50_Ajointgripper_Sjointgripper_0624/ZhaoRunyi/Piper_traffic_light_water_0624"),
-=======
             repo_id="ZhaoRunyi/Piper_traffic_light_water_color", # HF_LEROBOT_HOME=/workspace/data
             assets=AssetsConfig(assets_dir="/workspace/openpi_piper/assets", asset_id="pi05_slai_piper_traffic_light_water_color_H50_Ajointgripper_Sjointgripper_0626/ZhaoRunyi/Piper_traffic_light_water_color"),
->>>>>>> 1c9fad9 (more configs)
             base_config=DataConfig(prompt_from_task=True),
         ),
         save_interval=10000,
@@ -1766,11 +1757,7 @@ _CONFIGS = [
         num_workers=16
     ),
     TrainConfig(
-<<<<<<< HEAD
-        name="pi05_slai_piper_traffic_light_water_H50_Ajointgripper_Sjointgripper_FAST_0624",
-=======
         name="pi05_slai_piper_traffic_light_water_color_H50_Ajointgripper_Sjointgripper_FAST_0626",
->>>>>>> 1c9fad9 (more configs)
         model=pi0_config.Pi0Config(
             pi05=True,
             action_dim=slai_piper_policy.get_space_dim(slai_piper_policy.ActionSpaceConfig()),
@@ -1781,13 +1768,8 @@ _CONFIGS = [
         data=LeRobotSLAIPiperDataConfig(
             action_space=slai_piper_policy.ActionSpaceConfig(ids="joint_gripper"),
             state_space=slai_piper_policy.StateSpaceConfig(ids="joint_gripper"),
-<<<<<<< HEAD
-            repo_id="ZhaoRunyi/Piper_traffic_light_water_0624", # HF_LEROBOT_HOME=/workspace/data
-            assets=AssetsConfig(assets_dir="/workspace/openpi_piper/assets", asset_id="pi05_slai_piper_traffic_light_water_H50_Ajointgripper_Sjointgripper_FAST_0624/ZhaoRunyi/Piper_traffic_light_water_0624"),
-=======
             repo_id="ZhaoRunyi/Piper_traffic_light_water_color", # HF_LEROBOT_HOME=/workspace/data
             assets=AssetsConfig(assets_dir="/workspace/openpi_piper/assets", asset_id="pi05_slai_piper_traffic_light_water_color_H50_Ajointgripper_Sjointgripper_FAST_0626/ZhaoRunyi/Piper_traffic_light_water_color"),
->>>>>>> 1c9fad9 (more configs)
             base_config=DataConfig(prompt_from_task=True),
         ),
         save_interval=10000,
