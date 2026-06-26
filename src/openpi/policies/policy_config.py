@@ -1,3 +1,4 @@
+import dataclasses
 import logging
 import os
 import pathlib
@@ -55,7 +56,10 @@ def create_trained_policy(
         model.paligemma_with_expert.to_bfloat16_for_selected_params("bfloat16")
     else:
         model = train_config.model.load(_model.restore_params(checkpoint_dir / "params", dtype=jnp.bfloat16))
-    data_config = train_config.data.create(train_config.assets_dirs, train_config.model)
+    model_config = train_config.model
+    if getattr(model_config, "fast_aux_loss_coef", None) is not None:
+        model_config = dataclasses.replace(model_config, fast_aux_loss_coef=None)
+    data_config = train_config.data.create(train_config.assets_dirs, model_config)
     if norm_stats is None:
         # We are loading the norm stats from the checkpoint instead of the config assets dir to make sure
         # that the policy is using the same normalization stats as the original training process.
