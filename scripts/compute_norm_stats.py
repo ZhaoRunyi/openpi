@@ -41,6 +41,7 @@ def create_torch_dataloader(
     num_workers: int,
     max_frames: int | None = None,
     dataset_weights: tuple[float, ...] | None = None,
+    dataset_sampling_strategy: str = "concat",
 ) -> tuple[_data_loader.Dataset, int]:
     data_configs = data_config if isinstance(data_config, tuple) else (data_config,)
     if any(data_config.repo_id is None for data_config in data_configs):
@@ -66,7 +67,7 @@ def create_torch_dataloader(
                     raise ValueError(f"Cannot compute mixed norm stats with inconsistent {key} dimensions.")
     dataset = datasets[0] if len(datasets) == 1 else torch.utils.data.ConcatDataset(datasets)
     sampler = None
-    if len(datasets) > 1:
+    if len(datasets) > 1 and dataset_sampling_strategy == "concat_weighted":
         sampler = _data_loader.create_lerobot_weighted_sampler(dataset, dataset_weights or (1.0,) * len(datasets))
     if max_frames is not None and max_frames < len(dataset):
         num_batches = max_frames // batch_size
@@ -140,6 +141,7 @@ def main(config_name: str, max_frames: int | None = None):
                 config.num_workers,
                 max_frames,
                 tuple(config.dataset_weights) if config.dataset_weights is not None else None,
+                config.dataset_sampling_strategy,
             )
 
         keys = ["state", "actions"]

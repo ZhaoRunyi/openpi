@@ -304,6 +304,7 @@ def create_data_loader(
         skip_norm_stats=skip_norm_stats,
         framework=framework,
         dataset_weights=config.dataset_weights,
+        dataset_sampling_strategy=config.dataset_sampling_strategy,
     )
 
 
@@ -321,6 +322,7 @@ def create_torch_data_loader(
     seed: int = 0,
     framework: str = "jax",
     dataset_weights: Sequence[float] | None = None,
+    dataset_sampling_strategy: Literal["concat", "concat_weighted"] = "concat",
 ) -> DataLoader[tuple[_model.Observation, _model.Actions]]:
     """Create a data loader for training.
 
@@ -350,7 +352,7 @@ def create_torch_data_loader(
     ]
     dataset = datasets[0] if len(datasets) == 1 else torch.utils.data.ConcatDataset(datasets)
     sampler = None
-    if len(datasets) > 1:
+    if len(datasets) > 1 and dataset_sampling_strategy == "concat_weighted":
         rank = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
         sampler = create_lerobot_weighted_sampler(dataset, dataset_weights or [1.0] * len(datasets), seed=seed + rank)
 

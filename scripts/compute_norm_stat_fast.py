@@ -274,7 +274,7 @@ def _process_piper_group(
     if len(piper_datas) == 1:
         frame_indices = _build_selected_indices(frame_counts[0], config.batch_size, max_frames, config.seed)
         dataset_indices = np.zeros(len(frame_indices), dtype=np.int64)
-    else:
+    elif config.dataset_sampling_strategy == "concat_weighted":
         dataset_indices, frame_indices = _build_weighted_sample_indices(
             frame_counts,
             tuple(config.dataset_weights) if config.dataset_weights is not None else None,
@@ -282,6 +282,11 @@ def _process_piper_group(
             max_frames,
             config.seed,
         )
+    else:
+        offsets = np.cumsum((0,) + frame_counts)
+        frame_indices = _build_selected_indices(sum(frame_counts), config.batch_size, max_frames, config.seed)
+        dataset_indices = np.searchsorted(offsets[1:], frame_indices, side="right").astype(np.int64, copy=False)
+        frame_indices = frame_indices - offsets[dataset_indices]
 
     print(f"Selected frames: {len(frame_indices)}")
     print(f"Action horizon: {config.model.action_horizon}")
